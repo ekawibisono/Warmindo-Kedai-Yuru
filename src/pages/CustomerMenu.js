@@ -284,12 +284,16 @@ const CustomerMenu = () => {
             {/* Logo & Title */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">🍽️</span>
+                <div className="w-12 h-12 bg-white rounded-md flex items-center justify-center">
+                  <img
+                    src="/logo192.png"
+                    alt="Kedai Yuru Logo"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Menu</h1>
-                  <p className="text-xs text-gray-500 hidden sm:block">Pilih menu favorit Anda</p>
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Kedai Yuru</h1>
+                  <p className="text-xs text-gray-500 hidden sm:block">Mau Maem ? Kedai Yuru Solusinya</p>
                 </div>
               </div>
 

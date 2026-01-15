@@ -160,12 +160,27 @@ const Payments = () => {
 
       {/* Image Modal */}
       {selectedProof && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" 
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50"
           onClick={() => setSelectedProof(null)}
         >
-          <div className="max-w-4xl w-full">
-            <img src={selectedProof} alt="Payment Proof" className="w-full h-auto rounded-lg" />
+          <div
+            className="relative max-w-4xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedProof(null)}
+              className="absolute -top-3 -right-3 bg-white text-black rounded-full w-8 h-8 flex items-center justify-center shadow-lg"
+            >
+              ✕
+            </button>
+
+            <img
+              src={selectedProof}
+              alt="Payment Proof"
+              className="w-full max-h-[80vh] object-contain rounded-lg bg-white"
+            />
           </div>
         </div>
       )}
