@@ -150,14 +150,33 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setProofFile(file);
-
+    if (!file) return;
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "application/pdf"
+    ];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (!allowedTypes.includes(file.type)) {
+      alert("File harus berupa JPG, PNG, atau PDF");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > maxSize) {
+      alert("Ukuran file maksimal 5MB");
+      e.target.value = "";
+      return;
+    }
+    setProofFile(file);
+    // Preview hanya untuk IMAGE
+    if (file.type.startsWith("image/")) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setProofPreview(reader.result);
       };
       reader.readAsDataURL(file);
+    } else {
+      setProofPreview(null); // PDF tidak dipreview sebagai image
     }
   };
 
@@ -629,7 +648,7 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
                       </span>
                       <input
                         type="file"
-                        accept="image/*,application/pdf"
+                        accept="image/jpeg,image/jpg,image/png,application/pdf"
                         onChange={handleFileChange}
                         className="hidden"
                       />
