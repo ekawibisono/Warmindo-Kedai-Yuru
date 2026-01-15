@@ -1,0 +1,53 @@
+{
+  "name": "frontend-pos",
+  "version": "1.0.0",
+  "private": true,
+  "homepage": ".",
+  "scripts": {
+    "start": "PORT=3001 react-scripts start",
+    "build": "react-scripts build",
+    "build1": "react-app-rewired build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "prod": "serve -s build -l 3001",
+    "seo": "node scripts/generate-seo-files.js",
+    "build:prod": "npm run seo && npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "qrcode.react": "^4.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "react-scripts": "5.0.1",
+    "react-toastify": "^11.0.5"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "generate-robotstxt": "^8.0.3",
+    "javascript-obfuscator": "^5.1.0",
+    "postcss": "^8.4.32",
+    "react-app-rewired": "^2.2.1",
+    "sitemap": "^9.0.0",
+    "tailwindcss": "^3.3.5",
+    "webpack-obfuscator": "^3.6.0",
+    "webpack-pwa-manifest": "^4.3.0"
+  }
+}
