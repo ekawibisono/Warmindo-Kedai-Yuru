@@ -159,7 +159,7 @@ const CustomerMenu = () => {
 
   const addToCart = () => {
     if (!canAddToCart()) {
-      alert('Mohon pilih modifier yang wajib dipilih');
+      alert('Silakan lengkapi pilihan anda.');
       return;
     }
 
@@ -818,7 +818,7 @@ const CustomerMenu = () => {
                 </button>
                 {!canAddToCart() && (
                   <p className="text-xs text-red-500 text-center mt-2">
-                    * Mohon pilih modifier yang wajib dipilih
+                    * Silahkan Lengkapi Pilihan Anda.
                   </p>
                 )}
               </div>
