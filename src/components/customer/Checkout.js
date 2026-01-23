@@ -54,6 +54,11 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     return getTotalAmount() === 0;
   };
 
+  // Check if delivery should be disabled (100% discount or disabled by store)
+  const isDeliveryNotAvailable = () => {
+    return isDeliveryDisabled || isFreeOrder();
+  };
+
   const formatRupiah = (number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -75,29 +80,34 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     try {
       const items = cart.map(item => ({
         product_id: item.product_id || item.id,
-        category_id: item.category_id,
-        price: item.price,
-        subtotal: item.subtotal,
-        quantity: item.quantity
+        category_id: item.category_id || null,
+        price: Number(item.price),
+        subtotal: Number(item.subtotal),
+        quantity: Number(item.quantity)
       }));
+      
       const response = await publicAPI.validateDiscount(discountCode, getSubtotal(), items);
       
       if (response.data.valid) {
         setAppliedDiscount(response.data.discount);
         setDiscountError('');
         
-        // FIX: Auto-select cash for 100% discount
+        // FIX: Auto-select cash for 100% discount and disable delivery
         const discountAmount = response.data.discount.discount_amount;
         if (discountAmount >= getSubtotal()) {
           setPaymentMethod('cash');
+          setOrderType('pickup'); // Force pickup for 100% discount
         }
       } else {
         setDiscountError(response.data.error || 'Kode promo tidak valid');
         setAppliedDiscount(null);
       }
     } catch (error) {
-      console.error('Error validating discount:', error);
-      setDiscountError(error.response?.data?.error || 'Gagal memvalidasi kode promo');
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message || 
+                          'Gagal memvalidasi kode promo';
+      
+      setDiscountError(errorMessage);
       setAppliedDiscount(null);
     } finally {
       setDiscountLoading(false);
@@ -109,8 +119,11 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     setAppliedDiscount(null);
     setDiscountCode('');
     setDiscountError('');
-    // Reset to QRIS if was auto-selected to cash
+    // Reset to QRIS and re-enable delivery options
     setPaymentMethod('qris');
+    if (!isDeliveryDisabled) {
+      setOrderType('pickup'); // Reset to default but allow selection
+    }
   };
 
   const handleCustomerInfoSubmit = (e) => {
@@ -128,6 +141,12 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     // Validation for delivery address
     if (orderType === 'delivery' && !customerInfo.delivery_address.trim()) {
       alert('❌ Alamat lengkap wajib diisi untuk pesanan delivery.');
+      return;
+    }
+
+    // Prevent delivery for 100% discount orders
+    if (orderType === 'delivery' && appliedDiscount && (appliedDiscount.discount_percentage === 100 || appliedDiscount.discount_amount >= getSubtotal())) {
+      alert('❌ Pesanan gratis harus menggunakan pickup. Delivery tidak tersedia untuk diskon 100%.');
       return;
     }
 
@@ -369,18 +388,23 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
                   <button
                     type="button"
                     onClick={() => setOrderType('delivery')}
-                    disabled={isDeliveryDisabled}
+                    disabled={isDeliveryNotAvailable()}
                     className={`p-3 border-2 rounded-lg text-center transition-colors ${
                       orderType === 'delivery'
                         ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : isDeliveryDisabled
+                        : isDeliveryNotAvailable()
                         ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
                     <div className="font-bold">🚗 Delivery</div>
                     <div className="text-xs text-gray-600 mt-1">
-                      {isDeliveryDisabled ? 'Tidak tersedia' : 'Antar ke lokasi'}
+                      {isDeliveryDisabled 
+                        ? 'Tidak tersedia' 
+                        : isFreeOrder() 
+                        ? 'Tidak untuk gratis'
+                        : 'Antar ke lokasi'
+                      }
                     </div>
                   </button>
                 </div>

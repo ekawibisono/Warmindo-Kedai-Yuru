@@ -190,6 +190,7 @@ const CustomerMenu = () => {
       id: Date.now().toString(),
       product_id: selectedProduct.id,
       product_name: selectedProduct.name,
+      category_id: selectedProduct.category_id,
       price: selectedProduct.price,
       quantity: quantity,
       modifiers: modifiers,

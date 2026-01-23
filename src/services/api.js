@@ -50,9 +50,10 @@ export const publicAPI = {
   },
 
   // Validate discount code (NEW)
-  validateDiscount: (code, orderAmount) => api.post('/public/discounts/validate', { 
+  validateDiscount: (code, orderAmount, items = []) => api.post('/public/discounts/validate', { 
     code, 
-    order_amount: orderAmount 
+    order_amount: orderAmount,
+    items: items
   }),
 
 };
