@@ -23,6 +23,16 @@ const OrderTracking = () => {
   const [tokenExpired, setTokenExpired] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(null);
 
+  // Bandwidth monitoring (untuk development insight)
+  const pollCount = useRef(0);
+  const sessionStart = useRef(Date.now());
+  
+  const logBandwidthStats = useCallback(() => {
+    const sessionDuration = (Date.now() - sessionStart.current) / 1000 / 60; // minutes
+    const avgPollPerMin = sessionDuration > 0 ? (pollCount.current / sessionDuration).toFixed(1) : '0';
+    console.log(`📊 Session Stats: ${pollCount.current} polls in ${sessionDuration.toFixed(1)}min (${avgPollPerMin}/min)`);
+  }, []);
+
   // Function to calculate time remaining - HANYA untuk countdown UI, BUKAN untuk blocking
   const calculateTimeRemaining = useCallback((orderData) => {
     const completedStatuses = ['completed', 'delivered', 'picked_up'];
@@ -76,12 +86,102 @@ const OrderTracking = () => {
     setConnectionAttempts(0);
   }, []);
 
+  // Stop polling function
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
+      clearTimeout(pollingIntervalRef.current); // Use clearTimeout for setTimeout
       pollingIntervalRef.current = null;
+      console.log('⏹️ Stopped smart polling');
     }
   }, []);
+
+  // Smart polling with adaptive intervals based on order status
+  const getPollingInterval = (orderStatus) => {
+    switch(orderStatus) {
+      case 'pending':
+      case 'confirmed':
+        return 30000; // 30 seconds - payment verification stage
+      case 'preparing':
+        return 45000; // 45 seconds - cooking stage
+      case 'ready':
+      case 'delivering':
+        return 20000; // 20 seconds - critical delivery stage
+      case 'waiting_pickup':
+        return 60000; // 1 minute - waiting for pickup
+      default:
+        return 60000; // 1 minute - default/completed
+    }
+  };
+
+  // Polling fallback with smart intervals
+  const startPolling = useCallback((orderNumber, trackingToken) => {
+    // Stop if already polling
+    if (pollingIntervalRef.current) {
+      console.log('⚠️ Polling already active, skipping');
+      return;
+    }
+
+    const pollData = async () => {
+      if (!tokenExpired) {
+        try {
+          pollCount.current++;
+          const response = await publicAPI.getOrder(orderNumber, trackingToken);
+          const orderData = response.data;
+
+          let currentOrder = null;
+          if (orderData.order) {
+            currentOrder = {
+              ...orderData.order,
+              payment: orderData.last_payment
+            };
+          } else {
+            currentOrder = orderData;
+          }
+
+          // Only update if status actually changed or first poll
+          const statusChanged = !order || order.status !== currentOrder.status;
+          if (statusChanged || !order) {
+            console.log(`📈 Order update: ${order?.status || 'none'} → ${currentOrder.status}`);
+            setOrder(currentOrder);
+            setLastUpdated(new Date());
+            logBandwidthStats(); // Log stats on meaningful updates
+          }
+
+          // Check if completed and stop polling
+          const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+          if (completedStatuses.includes(currentOrder.status)) {
+            console.log('✅ Order completed, stopping all updates');
+            logBandwidthStats(); // Final stats
+            stopPolling();
+            disconnectWebSocket();
+            return;
+          }
+
+          // Schedule next poll with adaptive interval
+          const newInterval = getPollingInterval(currentOrder.status);
+          console.log(`🔄 Next poll in ${newInterval/1000}s for status "${currentOrder.status}" (total polls: ${pollCount.current})`);
+          
+          pollingIntervalRef.current = setTimeout(() => {
+            pollingIntervalRef.current = null; // Clear reference
+            pollData(); // Recursive call with new timing
+          }, newInterval);
+
+        } catch (error) {
+          console.log('⚠️ Polling error:', error);
+          // Retry with longer interval on error
+          pollingIntervalRef.current = setTimeout(() => {
+            pollingIntervalRef.current = null;
+            pollData();
+          }, 30000); // 30s retry
+        }
+      } else {
+        stopPolling();
+      }
+    };
+
+    // Start immediately
+    pollData();
+  }, [tokenExpired, disconnectWebSocket, stopPolling, order, logBandwidthStats]);
 
   // Simple WebSocket connection
   const connectToWebSocket = useCallback((orderNumber, trackingToken) => {
@@ -146,15 +246,21 @@ const OrderTracking = () => {
         setWsConnected(false);
         wsRef.current = null;
         
-        // Auto-reconnect for real-time updates
+        // Auto-reconnect for real-time updates (dengan delay lebih lama)
         if (!tokenExpired && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-          const delay = Math.min(1000 * (connectionAttempts + 1), 10000); // Max 10s
+          const delay = Math.min(5000 * (connectionAttempts + 1), 30000); // Max 30s
           console.log(`🔄 Reconnecting WebSocket in ${delay}ms`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
             setConnectionAttempts(prev => prev + 1);
             connectToWebSocket(orderNumber, trackingToken);
           }, delay);
+        } else {
+          // Fallback to smart polling if WebSocket fails permanently
+          console.log('📡 WebSocket failed, starting smart polling as fallback');
+          if (order && !['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order.status)) {
+            startPolling(orderNumber, trackingToken);
+          }
         }
       };
 
@@ -167,51 +273,7 @@ const OrderTracking = () => {
       console.error('❌ Failed to create WebSocket:', err);
       setWsConnected(false);
     }
-  }, [calculateTimeRemaining, disconnectWebSocket, stopPolling, connectionAttempts, order?.payment, tokenExpired]);
-
-  // Polling fallback when WebSocket fails
-  const startPolling = useCallback((orderNumber, trackingToken) => {
-    console.log('🔄 Starting polling for updates');
-    
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-    
-    const interval = setInterval(async () => {
-      if (!tokenExpired) {
-        try {
-          const response = await publicAPI.getOrder(orderNumber, trackingToken);
-          const orderData = response.data;
-
-          let currentOrder = null;
-          if (orderData.order) {
-            currentOrder = {
-              ...orderData.order,
-              payment: orderData.last_payment
-            };
-          } else {
-            currentOrder = orderData;
-          }
-
-          setOrder(currentOrder);
-          setLastUpdated(new Date());
-          
-          // Check if completed
-          const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
-          if (completedStatuses.includes(currentOrder.status)) {
-            stopPolling();
-            disconnectWebSocket();
-          }
-        } catch (error) {
-          console.log('⚠️ Polling error:', error);
-        }
-      } else {
-        stopPolling();
-      }
-    }, 10000); // 10 seconds - faster for better updates
-    
-    pollingIntervalRef.current = interval;
-  }, [tokenExpired, disconnectWebSocket, stopPolling]);
+  }, [calculateTimeRemaining, disconnectWebSocket, stopPolling, connectionAttempts, order, tokenExpired, startPolling]);
 
   // Format remaining time to display
   const formatTimeRemaining = (seconds) => {
@@ -229,28 +291,28 @@ const OrderTracking = () => {
     };
   }, [disconnectWebSocket, stopPolling]);
 
-  // Start real-time connection after order is loaded - TEMPORARILY DISABLED
+  // Start smart real-time connection after order is loaded
   useEffect(() => {
-    // DISABLED FOR DEBUGGING - infinite loop protection
-    console.log('🔧 Real-time updates temporarily disabled to prevent rate limiting');
-    // return; // Commented out to avoid unreachable code warning
-    
     if (order && orderNo && token && !tokenExpired) {
       const finalStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
       
       if (!finalStatuses.includes(order.status)) {
-        console.log('🚀 Starting real-time updates for active order');
+        console.log('🚀 Starting smart real-time updates for active order');
         
         // Try WebSocket first for instant updates
         connectToWebSocket(orderNo, token);
         
-        // Start polling as backup (will be faster if WebSocket fails)
-        setTimeout(() => {
+        // Fallback to smart polling if WebSocket doesn't connect within 5 seconds
+        const fallbackTimer = setTimeout(() => {
           if (!wsConnected) {
-            console.log('📡 WebSocket not connected, using polling for updates');
+            console.log('📡 WebSocket not connected, using smart polling');
             startPolling(orderNo, token);
           }
-        }, 3000);
+        }, 5000);
+        
+        return () => clearTimeout(fallbackTimer);
+      } else {
+        console.log('✅ Order completed, no real-time updates needed');
       }
     }
   }, [order, orderNo, token, tokenExpired, connectToWebSocket, startPolling, wsConnected]);
@@ -900,17 +962,19 @@ const OrderTracking = () => {
                   ) : pollingIntervalRef.current ? (
                     <>
                       <span className="relative flex h-2 w-2">
+                        <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                       </span>
-                      <span className="text-sm text-blue-600 font-medium">📡 Polling</span>
-                      <span className="text-xs text-gray-500">• Update setiap 10 detik</span>
+                      <span className="text-sm text-blue-600 font-medium">🧠 Smart polling</span>
+                      <span className="text-xs text-gray-500">• Update adaptif berdasarkan status</span>
                     </>
                   ) : (
                     <>
                       <span className="relative flex h-2 w-2">
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-400"></span>
                       </span>
-                      <span className="text-sm text-gray-500 font-medium">Tidak terhubung</span>
+                      <span className="text-sm text-gray-500 font-medium">Manual refresh</span>
+                      <span className="text-xs text-gray-500">• Klik tombol refresh untuk update</span>
                     </>
                   )}
                 </div>

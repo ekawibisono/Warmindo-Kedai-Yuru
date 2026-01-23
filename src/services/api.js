@@ -30,8 +30,15 @@ export const publicAPI = {
   // Get menu
   getMenu: () => api.get('/public/menu'),
 
-  // Create order
-  createOrder: (orderData) => api.post('/public/orders', orderData),
+  // Customer authentication
+  googleLogin: (token) => api.post('/auth/customer/google', { token }),
+
+  // Create order (with optional customer token)
+  createOrder: (orderData) => {
+    const customerToken = localStorage.getItem('customer_token');
+    const headers = customerToken ? { 'Authorization': `Bearer ${customerToken}` } : {};
+    return api.post('/public/orders', orderData, { headers });
+  },
 
   // Get order by orderNo and token
   getOrder: (orderNo, token) => api.get(`/public/orders/${orderNo}?token=${token}`),
@@ -55,6 +62,32 @@ export const publicAPI = {
     order_amount: orderAmount,
     items: items
   }),
+
+  // Customer authentication & orders (NEW)
+  getCustomerProfile: () => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/profile', {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
+  getCustomerOrders: (page = 1, limit = 10) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/orders', {
+      headers: { 'Authorization': `Bearer ${customerToken}` },
+      params: { page, limit }
+    });
+  },
+
+  customerLogout: () => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.resolve();
+    return api.post('/auth/customer/logout', {}, {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
 
 };
 

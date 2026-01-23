@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { publicAPI } from '../services/api';
+import { useCustomerAuth } from '../contexts/CustomerAuthContext';
 import Checkout from '../components/customer/Checkout';
 import Cart from '../components/customer/Cart';
+import CustomerGoogleLogin from '../components/customer/CustomerGoogleLogin';
 
 const CustomerMenu = () => {
   // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
+  const { customer, logout, login, getToken } = useCustomerAuth();
+  
   const [menu, setMenu] = useState({
     products: [],
     categories: [],
@@ -24,6 +28,8 @@ const CustomerMenu = () => {
   const [quantity, setQuantity] = useState(1);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showOrderHistory, setShowOrderHistory] = useState(false); // NEW
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState(() => {
@@ -242,6 +248,19 @@ const CustomerMenu = () => {
     setCart([]);
     localStorage.removeItem('cart');
     setShowCheckout(false);
+
+    // Update local customer stats so header reflects new total orders immediately
+    if (customer) {
+      const updatedCustomer = {
+        ...customer,
+        total_orders: (customer.total_orders || 0) + 1,
+      };
+
+      const token = getToken && getToken();
+      if (login && token) {
+        login(updatedCustomer, token);
+      }
+    }
   };
 
   const formatRupiah = (number) => {
@@ -310,24 +329,105 @@ const CustomerMenu = () => {
                 </div>
               </div>
 
-              {/* Mobile Cart Button */}
-              <button
-                onClick={() => setShowCart(true)}
-                className="sm:hidden btn-primary flex items-center relative px-4 py-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-                    {cart.length}
-                  </span>
+              {/* Customer Auth & Mobile Cart */}
+              <div className="flex items-center space-x-1 sm:hidden">
+                {customer ? (
+                  <div className="flex items-center space-x-1">
+                    {/* Mobile Customer Avatar & Menu */}
+                    <button
+                      onClick={() => setShowOrderHistory(true)}
+                      className="flex items-center space-x-2 bg-primary-50 hover:bg-primary-100 rounded-lg px-2 py-1 transition-colors"
+                      title="Profil & Riwayat"
+                    >
+                      <img 
+                        src={customer.avatar || '/default-avatar.png'} 
+                        alt="Avatar"
+                        className="w-7 h-7 rounded-full border border-gray-300"
+                      />
+                      <span className="text-xs font-medium text-primary-700 max-w-16 truncate">
+                        {customer.name.split(' ')[0]}
+                      </span>
+                      <svg className="w-3 h-3 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="text-xs bg-primary-600 text-white px-2 py-1 rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    Masuk
+                  </button>
                 )}
-              </button>
+                
+                <button
+                  onClick={() => setShowCart(true)}
+                  className="sm:hidden bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center relative px-3 py-1 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold">
+                      {cart.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Actions */}
             <div className="flex items-center space-x-2 sm:space-x-3">
+              {/* Customer Auth - Desktop & Tablet */}
+              <div className="hidden sm:block">
+                {customer ? (
+                  <div className="flex items-center space-x-2 lg:space-x-3">
+                    <div className="flex items-center space-x-2 bg-gray-50 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2">
+                      <img 
+                        src={customer.avatar || '/default-avatar.png'} 
+                        alt="Avatar"
+                        className="w-7 h-7 lg:w-8 lg:h-8 rounded-full border border-gray-300"
+                      />
+                      <div className="text-xs lg:text-sm">
+                        <p className="font-medium text-gray-700">{customer.name}</p>
+                        <p className="text-xs text-gray-500 hidden lg:block">Member Customer</p>
+                      </div>
+                    </div>
+                    
+                    {/* Order History Button */}
+                    <button
+                      onClick={() => setShowOrderHistory(true)}
+                      className="text-xs lg:text-sm text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2 flex items-center transition-colors"
+                      title="Riwayat Pesanan"
+                    >
+                      <svg className="w-3.5 h-3.5 lg:w-4 lg:h-4 mr-1 lg:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                      <span className="hidden md:inline">Riwayat</span>
+                    </button>
+                    
+                    <button
+                      onClick={logout}
+                      className="text-gray-600 hover:text-gray-800 p-1 transition-colors"
+                      title="Keluar"
+                    >
+                      <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="bg-primary-600 text-white px-3 py-1.5 lg:px-4 lg:py-2 text-sm lg:text-base rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <span className="hidden lg:inline">Masuk dengan Google</span>
+                    <span className="lg:hidden">Masuk</span>
+                  </button>
+                )}
+              </div>
+
               <a
                 href="/track"
                 className="flex-1 sm:flex-none text-center sm:text-left px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors flex items-center justify-center"
@@ -355,6 +455,25 @@ const CustomerMenu = () => {
               </button>
             </div>
           </div>
+
+          {/* Customer Welcome Message */}
+          {customer && (
+            <div className="mt-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white p-3 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                <p className="text-sm font-medium">
+                  👋 Selamat datang, {customer.name.split(' ')[0]}!
+                </p>
+                <div className="text-xs opacity-90">
+                  <span className="flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    {customer.total_orders || 0} pesanan
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Search Bar */}
           <div className="mt-3">
@@ -894,6 +1013,266 @@ const CustomerMenu = () => {
           </div>
         </div>
       </footer>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <CustomerGoogleLogin 
+          onSuccess={(customerData) => {
+            setShowLoginModal(false);
+            // Customer data already handled by context
+          }}
+          onClose={() => setShowLoginModal(false)}
+        />
+      )}
+
+      {/* Order History Modal */}
+      {showOrderHistory && (
+        <OrderHistoryModal 
+          onClose={() => setShowOrderHistory(false)}
+        />
+      )}
+    </div>
+  );
+};
+  
+  // Hanya izinkan pelacakan untuk pesanan yang masih berjalan
+  const isTrackableStatus = (status) => {
+    const nonTrackable = [
+      'completed',
+      'delivered',
+      'picked_up',
+      'cancelled',
+      'rejected'
+    ];
+    return !nonTrackable.includes(status);
+  };
+
+// Order History Modal Component
+const OrderHistoryModal = ({ onClose }) => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    totalPages: 1,
+    total: 0,
+    hasMore: false
+  });
+
+  useEffect(() => {
+    fetchOrderHistory();
+  }, []);
+
+  const fetchOrderHistory = async (page = 1) => {
+    try {
+      setLoading(true);
+      const response = await publicAPI.getCustomerOrders(page, 5);
+
+      // Backend response shape: { success, data: { orders, pagination } }
+      const apiData = response?.data?.data || {};
+      const ordersFromApi = apiData.orders || [];
+      const paginationFromApi = apiData.pagination || {};
+
+      if (page === 1) {
+        setOrders(ordersFromApi);
+      } else {
+        setOrders(prev => [...prev, ...ordersFromApi]);
+      }
+
+      setPagination(prev => ({
+        ...prev,
+        ...paginationFromApi,
+      }));
+    } catch (error) {
+      console.error('Error fetching order history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMoreOrders = () => {
+    if (pagination.hasMore && !loading) {
+      fetchOrderHistory(pagination.page + 1);
+    }
+  };
+
+  const formatRupiah = (number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(number);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+      case 'delivered':
+      case 'picked_up':
+        return 'bg-green-100 text-green-800';
+      case 'preparing':
+      case 'ready':
+        return 'bg-blue-100 text-blue-800';
+      case 'pending':
+      case 'confirmed':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled':
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status, type) => {
+    const statusMap = {
+      pending: 'Menunggu Konfirmasi',
+      confirmed: 'Dikonfirmasi',
+      preparing: 'Sedang Dimasak',
+      ready: 'Siap',
+      delivering: 'Dalam Pengiriman',
+      delivered: 'Terkirim',
+      picked_up: 'Sudah Diambil',
+      completed: 'Selesai',
+      cancelled: 'Dibatalkan',
+      rejected: 'Ditolak'
+    };
+    return statusMap[status] || status;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="bg-primary-600 text-white p-4 sm:p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              <h2 className="text-lg sm:text-xl font-bold">Riwayat Pesanan</h2>
+            </div>
+            <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors p-1">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-primary-100 text-sm mt-1 sm:mt-2">Total: {pagination.total} pesanan</p>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 sm:p-6 overflow-y-auto" style={{maxHeight: 'calc(95vh - 120px)'}}>
+          {loading && orders.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="text-gray-500 mt-4">Memuat riwayat pesanan...</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              </svg>
+              <p className="text-gray-500">Belum ada riwayat pesanan</p>
+              <p className="text-gray-400 text-sm mt-1">Pesanan Anda akan muncul di sini setelah Anda berbelanja</p>
+            </div>
+          ) : (
+            <div className="space-y-3 sm:space-y-4">
+              {orders.map((order) => (
+                <div key={order.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-0 mb-3">
+                    <div className="flex-1">
+                      <p className="font-bold text-base sm:text-lg text-gray-900">{order.order_no}</p>
+                      <p className="text-xs sm:text-sm text-gray-500">{formatDate(order.created_at)}</p>
+                    </div>
+                    <div className="flex justify-between sm:justify-end sm:text-right items-center sm:items-end sm:flex-col gap-2">
+                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getStatusColor(order.status)}`}>
+                        {getStatusText(order.status, order.type)}
+                      </span>
+                      <p className="text-base sm:text-lg font-bold text-primary-600">
+                        {formatRupiah(order.grand_total)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div className="space-y-1 sm:space-y-2 mb-3">
+                    {order.items?.slice(0, 3).map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-xs sm:text-sm gap-2">
+                        <span className="text-gray-700 flex-1 min-w-0">
+                          <span className="font-medium">{item.qty}x</span> {item.product_name_snapshot}
+                          {item.modifiers?.length > 0 && (
+                            <span className="text-gray-500 text-xs block sm:inline">
+                              + {item.modifiers.map(m => m.modifier_name_snapshot).join(', ')}
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-gray-600 font-medium whitespace-nowrap">{formatRupiah(item.subtotal)}</span>
+                      </div>
+                    ))}
+                    {order.items?.length > 3 && (
+                      <p className="text-xs text-gray-500">+{order.items.length - 3} item lainnya</p>
+                    )}
+                  </div>
+
+                  {/* Order Type & Actions */}
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 pt-3 border-t border-gray-100">
+                    <div className="flex items-center text-xs sm:text-sm text-gray-600">
+                      <span className="mr-2">
+                        {order.type === 'delivery' ? '🚗' : '🏪'}
+                      </span>
+                      <span>{order.type === 'delivery' ? 'Delivery' : 'Pickup'}</span>
+                      <span className="mx-2">•</span>
+                      <span className="uppercase">{order.payment_method}</span>
+                    </div>
+                    <div className="flex items-center justify-end space-x-2">
+                      {order.public_tracking_token && isTrackableStatus(order.status) && (
+                        <a
+                          href={`/track?order=${order.order_no}&token=${order.public_tracking_token}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs bg-primary-100 text-primary-700 px-2 sm:px-3 py-1 rounded-full hover:bg-primary-200 transition-colors font-medium"
+                        >
+                          Lacak Pesanan
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Load More Button */}
+              {pagination.hasMore && (
+                <div className="text-center pt-4">
+                  <button
+                    onClick={loadMoreOrders}
+                    disabled={loading}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <span className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                        Memuat...
+                      </span>
+                    ) : (
+                      `Muat Lebih (${pagination.total - orders.length} tersisa)`
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

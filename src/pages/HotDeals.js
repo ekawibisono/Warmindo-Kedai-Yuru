@@ -38,6 +38,7 @@ const HotDeals = () => {
         isOpen: false,
         tierId: null,
         tierName: '',
+        warningMessage: '',
     });
 
     useEffect(() => {
@@ -105,10 +106,34 @@ const HotDeals = () => {
     };
 
     const handleAutoUpdate = async () => {
+        // Show confirmation dialog first
+        const activeTiers = tiers.filter(t => t.is_active);
+        
+        let confirmMessage;
+        if (activeTiers.length === 0) {
+            // No active tiers - will remove all hot deals
+            confirmMessage = `Tidak ada tier aktif. Sistem akan menghapus SEMUA Hot Deals yang ada.\n\nLanjutkan menghapus semua Hot Deals?`;
+        } else {
+            // Has active tiers - will apply them
+            confirmMessage = `Sistem akan otomatis menerapkan tier ke semua produk berdasarkan jumlah terjual:\n\n${activeTiers.map(t => 
+                `• ${t.tier_name}: ${t.min_sold}${t.max_sold ? `-${t.max_sold}` : '+'} terjual → ${t.discount_percent}% diskon`
+            ).join('\n')}\n\nLanjutkan?`;
+        }
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
         try {
             setLoading(true);
             const response = await staffAPI.updateHotDealsAuto();
-            notify.success(response.data.message || 'Hot Deals berhasil diupdate otomatis');
+            
+            if (activeTiers.length === 0) {
+                notify.success('Semua Hot Deals berhasil dihapus karena tidak ada tier aktif');
+            } else {
+                notify.success(response.data.message || 'Hot Deals berhasil diupdate otomatis berdasarkan tier');
+            }
+            
             fetchData();
         } catch (error) {
             console.error('Error auto updating hot deals:', error);
@@ -172,10 +197,21 @@ const HotDeals = () => {
     };
 
     const handleDeleteTier = (tier) => {
+        // Check if this will be the last active tier
+        const activeCount = tiers.filter(t => t.is_active && t.id !== tier.id).length;
+        const hasHotDeals = hotDealsProducts.length > 0;
+        
+        let warningMessage = `Apakah Anda yakin ingin menghapus tier "${tier.tier_name}"?`;
+        
+        if (activeCount === 0 && hasHotDeals) {
+            warningMessage += `\n\n⚠️ PERINGATAN: Ini adalah tier aktif terakhir dan masih ada ${hotDealsProducts.length} produk Hot Deals. Setelah tier dihapus, semua Hot Deals akan otomatis dihapus juga.`;
+        }
+
         setDeleteTierDialog({
             isOpen: true,
             tierId: tier.id,
             tierName: tier.tier_name,
+            warningMessage: warningMessage,
         });
     };
 
@@ -183,8 +219,30 @@ const HotDeals = () => {
         try {
             await staffAPI.deleteHotDealTier(deleteTierDialog.tierId);
             notify.success(`Tier "${deleteTierDialog.tierName}" berhasil dihapus`);
-            fetchData();
-            setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '' });
+            
+            // Refresh data terlebih dahulu untuk mendapatkan tier terbaru
+            await fetchData();
+            
+            // Check if there are any active tiers left after the deletion
+            const updatedTiersRes = await staffAPI.getHotDealTiers();
+            const activeTiers = (updatedTiersRes.data || []).filter(t => t.is_active);
+            
+            if (activeTiers.length === 0) {
+                // No active tiers left, automatically update hot deals to remove all
+                notify.info('Tidak ada tier aktif tersisa. Menghapus semua Hot Deals...');
+                
+                try {
+                    // Force update without tier validation
+                    await staffAPI.updateHotDealsAuto();
+                    notify.success('Semua Hot Deals telah dihapus karena tidak ada tier aktif');
+                    await fetchData(); // Refresh again to show updated state
+                } catch (error) {
+                    console.error('Error auto updating after tier deletion:', error);
+                    notify.warning('Tier dihapus, silakan klik "Update Otomatis" untuk menghapus Hot Deals yang tersisa');
+                }
+            }
+            
+            setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '', warningMessage: '' });
         } catch (error) {
             console.error('Error deleting tier:', error);
             notify.error('Gagal menghapus tier');
@@ -227,15 +285,21 @@ const HotDeals = () => {
                             Kelola produk Hot Deals dan pengaturan tier diskon otomatis
                         </p>
                     </div>
-                    <button
-                        onClick={handleAutoUpdate}
-                        className="btn-secondary flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Update Otomatis
-                    </button>
+                    <div className="flex flex-col items-end gap-3">
+                        <button
+                            onClick={handleAutoUpdate}
+                            className="btn-primary flex items-center gap-2 shadow-lg"
+                            disabled={loading}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {loading ? 'Memproses...' : 'Update Otomatis'}
+                        </button>
+                        <p className="text-xs text-gray-500 text-right max-w-sm">
+                            💡 Klik untuk menerapkan tier secara otomatis ke semua produk berdasarkan jumlah terjual
+                        </p>
+                    </div>
                 </div>
 
                 {/* Statistics Cards */}
@@ -326,6 +390,34 @@ const HotDeals = () => {
                 {/* Products Tab */}
                 {activeTab === 'products' && (
                     <div className="space-y-6">
+                        {/* Warning if no active tiers but hot deals exist */}
+                        {hotDealsProducts.length > 0 && tiers.filter(t => t.is_active).length === 0 && (
+                            <div className="card border-amber-200 bg-amber-50">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-medium text-amber-800 mb-1">
+                                            ⚠️ Peringatan: Tidak Ada Tier Aktif
+                                        </h3>
+                                        <p className="text-sm text-amber-700 mb-3">
+                                            Masih ada <strong>{hotDealsProducts.length} produk Hot Deals</strong> aktif, tapi tidak ada tier yang dikonfigurasi. 
+                                            Hot Deals ini tidak akan ter-update otomatis.
+                                        </p>
+                                        <button 
+                                            onClick={handleAutoUpdate}
+                                            className="btn-warning text-sm"
+                                        >
+                                            🔄 Update Sekarang untuk Menghapus Hot Deals
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Active Hot Deals */}
                         <div className="card">
                             <div className="flex justify-between items-center mb-4">
@@ -481,8 +573,21 @@ const HotDeals = () => {
                             <div>
                                 <h2 className="text-xl font-bold text-gray-900">Pengaturan Tier Diskon</h2>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    Tier akan otomatis diterapkan berdasarkan jumlah produk terjual
+                                    Setup tier diskon berdasarkan jumlah terjual, lalu klik "Update Otomatis" untuk menerapkan
                                 </p>
+                                {tiers.length > 0 && tiers.some(t => t.is_active) && (
+                                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex items-center gap-2 text-blue-800 text-sm">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="font-medium">Tier siap digunakan!</span>
+                                        </div>
+                                        <p className="text-blue-700 text-xs mt-1">
+                                            Klik tombol "Update Otomatis" di atas untuk menerapkan tier ke semua produk secara otomatis.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                             <button onClick={handleAddTier} className="btn-primary">
                                 + Tambah Tier
@@ -541,10 +646,42 @@ const HotDeals = () => {
                                 </table>
                             </div>
                         ) : (
-                            <div className="text-center py-12 text-gray-500">
+                            <div className="text-center py-12">
                                 <div className="text-6xl mb-4">⚙️</div>
-                                <p>Belum ada tier yang dikonfigurasi</p>
-                                <button onClick={handleAddTier} className="mt-4 btn-primary">
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada tier yang dikonfigurasi</h3>
+                                <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                                    Setup tier untuk mengotomatisasi Hot Deals berdasarkan jumlah produk terjual
+                                </p>
+                                
+                                <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left max-w-lg mx-auto">
+                                    <h4 className="font-medium text-gray-900 mb-3">📋 Cara Setup Tier Otomatis:</h4>
+                                    <ol className="text-sm text-gray-600 space-y-2">
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">1.</span>
+                                            <span>Klik "Tambah Tier Pertama" di bawah</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">2.</span>
+                                            <span>Isi data tier (contoh: Bronze, min 10 terjual, diskon 5%)</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">3.</span>
+                                            <span>Pastikan tier "Aktif" ✅</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">4.</span>
+                                            <span><strong>Klik "Update Otomatis"</strong> untuk menerapkan ke semua produk</span>
+                                        </li>
+                                    </ol>
+                                    
+                                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                        <p className="text-green-800 text-xs">
+                                            💡 <strong>Hasil:</strong> Produk dengan jumlah terjual sesuai tier akan otomatis mendapat diskon tanpa perlu setting manual!
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <button onClick={handleAddTier} className="btn-primary">
                                     Tambah Tier Pertama
                                 </button>
                             </div>
@@ -731,11 +868,11 @@ const HotDeals = () => {
                 <ConfirmDialog
                     isOpen={deleteTierDialog.isOpen}
                     title="Hapus Tier?"
-                    message={`Apakah Anda yakin ingin menghapus tier "${deleteTierDialog.tierName}"?`}
+                    message={deleteTierDialog.warningMessage || `Apakah Anda yakin ingin menghapus tier "${deleteTierDialog.tierName}"?`}
                     confirmText="Hapus"
                     cancelText="Batal"
                     onConfirm={confirmDeleteTier}
-                    onClose={() => setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '' })}
+                    onClose={() => setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '', warningMessage: '' })}
                     type="danger"
                 />
             </div>
