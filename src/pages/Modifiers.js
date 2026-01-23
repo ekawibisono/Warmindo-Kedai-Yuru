@@ -260,28 +260,29 @@ const Modifiers = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Modifiers</h1>
-            <p className="text-gray-600 mt-2">Kelola modifier untuk produk</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Modifiers</h1>
+            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Kelola modifier untuk produk</p>
           </div>
-          <div className="flex space-x-3">
-            <button onClick={() => setShowBulkModal(true)} className="btn-secondary flex items-center">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+            <button onClick={() => setShowBulkModal(true)} className="btn-secondary flex items-center justify-center w-full sm:w-auto">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14v6m-3-3h6m-6-3h6m-9-1V4a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h6m2-6V8" />
               </svg>
-              Tambah Multiple
+              <span className="sm:inline">Tambah Multiple</span>
             </button>
-            <button onClick={() => setShowModal(true)} className="btn-primary flex items-center">
+            <button onClick={() => setShowModal(true)} className="btn-primary flex items-center justify-center w-full sm:w-auto">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Tambah Modifier
+              <span className="sm:inline">Tambah Modifier</span>
             </button>
           </div>
         </div>
 
-        <div className="card overflow-x-auto">
+        {/* Desktop & Tablet Table View */}
+        <div className="hidden md:block card overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -340,12 +341,99 @@ const Modifiers = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-4">
+          {/* Mobile Sort Controls */}
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => handleSort('name')}
+              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                sortConfig.key === 'name' 
+                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
+                  : 'bg-white text-gray-600 border border-gray-200'
+              }`}
+            >
+              Nama {getSortIcon('name')}
+            </button>
+            <button
+              onClick={() => handleSort('group')}
+              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                sortConfig.key === 'group' 
+                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
+                  : 'bg-white text-gray-600 border border-gray-200'
+              }`}
+            >
+              Group {getSortIcon('group')}
+            </button>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="space-y-3">
+            {getSortedModifiers().map((modifier) => (
+              <div key={modifier.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{modifier.name}</h3>
+                    <p className="text-sm text-gray-500 mb-2">
+                      <span className="inline-flex items-center">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        {getGroupName(modifier.group_id)}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    {modifier.is_active ? 
+                      <span className="badge-success mb-2">Aktif</span> : 
+                      <span className="badge-gray mb-2">Nonaktif</span>
+                    }
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatRupiah(modifier.price_delta)}
+                  </div>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => { 
+                        setEditingModifier(modifier); 
+                        setFormData({...modifier}); 
+                        setShowModal(true); 
+                      }} 
+                      className="px-3 py-1.5 text-sm bg-primary-50 text-primary-600 rounded-md border border-primary-200 hover:bg-primary-100 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => openDeleteDialog(modifier)} 
+                      className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-md border border-red-200 hover:bg-red-100 transition-colors"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {getSortedModifiers().length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <p className="text-sm">Belum ada modifier</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl max-w-md w-full mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">
                 {editingModifier ? 'Edit Modifier' : 'Tambah Modifier'}
@@ -408,9 +496,9 @@ const Modifiers = () => {
                 <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">Aktif</label>
               </div>
               
-              <div className="flex justify-end space-x-3 pt-4 border-t">
-                <button type="button" onClick={handleCloseModal} className="btn-secondary">Batal</button>
-                <button type="submit" className="btn-primary">{editingModifier ? 'Update' : 'Simpan'}</button>
+              <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4 border-t">
+                <button type="button" onClick={handleCloseModal} className="btn-secondary w-full sm:w-auto order-2 sm:order-1">Batal</button>
+                <button type="submit" className="btn-primary w-full sm:w-auto order-1 sm:order-2">{editingModifier ? 'Update' : 'Simpan'}</button>
               </div>
             </form>
           </div>
@@ -420,7 +508,7 @@ const Modifiers = () => {
       {/* Bulk Modal */}
       {showBulkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-lg w-full mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Tambah Multiple Modifier</h2>
               <button onClick={handleCloseBulkModal} className="text-gray-400 hover:text-gray-600">
@@ -463,8 +551,22 @@ const Modifiers = () => {
                 <div className="space-y-3">
                   {bulkFormData.modifiers.map((modifier, index) => (
                     <div key={index} className="border rounded-lg p-3 bg-gray-50">
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-1 space-y-2">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-sm font-medium text-gray-700">Modifier {index + 1}</h4>
+                          {bulkFormData.modifiers.length > 1 && (
+                            <button 
+                              type="button" 
+                              onClick={() => removeModifierInput(index)}
+                              className="text-red-500 hover:text-red-700 p-1 rounded-md hover:bg-red-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Nama</label>
                             <input 
@@ -487,17 +589,6 @@ const Modifiers = () => {
                             />
                           </div>
                         </div>
-                        {bulkFormData.modifiers.length > 1 && (
-                          <button 
-                            type="button" 
-                            onClick={() => removeModifierInput(index)}
-                            className="text-red-500 hover:text-red-700 p-1 mt-6"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -515,9 +606,9 @@ const Modifiers = () => {
                 <label htmlFor="bulk_is_active" className="ml-2 block text-sm text-gray-900">Aktif (untuk semua)</label>
               </div>
               
-              <div className="flex justify-end space-x-3 pt-4 border-t">
-                <button type="button" onClick={handleCloseBulkModal} className="btn-secondary">Batal</button>
-                <button type="submit" className="btn-primary">Simpan Semua</button>
+              <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4 border-t">
+                <button type="button" onClick={handleCloseBulkModal} className="btn-secondary w-full sm:w-auto order-2 sm:order-1">Batal</button>
+                <button type="submit" className="btn-primary w-full sm:w-auto order-1 sm:order-2">Simpan Semua</button>
               </div>
             </form>
           </div>

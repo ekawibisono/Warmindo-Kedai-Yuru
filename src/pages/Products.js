@@ -15,6 +15,7 @@ const Products = () => {
   const [managingProductModifiers, setManagingProductModifiers] = useState(null);
   const [productModifierGroups, setProductModifierGroups] = useState([]);
   const [selectedModifierGroups, setSelectedModifierGroups] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
@@ -217,6 +218,64 @@ const Products = () => {
     return category ? category.name : '-';
   };
 
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedProducts = () => {
+    if (!sortConfig.key) return products;
+
+    return [...products].sort((a, b) => {
+      let aValue, bValue;
+
+      if (sortConfig.key === 'category') {
+        aValue = getCategoryName(a.category_id).toLowerCase();
+        bValue = getCategoryName(b.category_id).toLowerCase();
+      } else if (sortConfig.key === 'name') {
+        aValue = a.name.toLowerCase();
+        bValue = b.name.toLowerCase();
+      } else if (sortConfig.key === 'price') {
+        aValue = parseFloat(a.price) || 0;
+        bValue = parseFloat(b.price) || 0;
+      } else {
+        aValue = a[sortConfig.key];
+        bValue = b[sortConfig.key];
+      }
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return (
+        <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    
+    if (sortConfig.direction === 'asc') {
+      return (
+        <svg className="w-4 h-4 ml-1 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+      );
+    } else {
+      return (
+        <svg className="w-4 h-4 ml-1 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      );
+    }
+  };
+
   const formatRupiah = (number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -238,14 +297,14 @@ const Products = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Produk</h1>
-            <p className="text-gray-600 mt-2">Kelola produk yang dijual</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Produk</h1>
+            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Kelola produk yang dijual</p>
           </div>
           <button
             onClick={() => setShowModal(true)}
-            className="btn-primary flex items-center"
+            className="btn-primary flex items-center justify-center w-full sm:w-auto"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -254,7 +313,8 @@ const Products = () => {
           </button>
         </div>
 
-        <div className="card">
+        {/* Desktop & Tablet Table View */}
+        <div className="hidden md:block card">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -283,7 +343,7 @@ const Products = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {products.map((product) => {
+                {getSortedProducts().map((product) => {
                   const productModifiers = getProductModifierGroups(product.id);
                   return (
                     <tr key={product.id} className="hover:bg-gray-50">
@@ -371,19 +431,156 @@ const Products = () => {
             </table>
           </div>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-4">
+          {/* Mobile Sort Controls */}
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            <button
+              onClick={() => handleSort('name')}
+              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                sortConfig.key === 'name' 
+                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
+                  : 'bg-white text-gray-600 border border-gray-200'
+              }`}
+            >
+              Nama {getSortIcon('name')}
+            </button>
+            <button
+              onClick={() => handleSort('category')}
+              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                sortConfig.key === 'category' 
+                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
+                  : 'bg-white text-gray-600 border border-gray-200'
+              }`}
+            >
+              Kategori {getSortIcon('category')}
+            </button>
+            <button
+              onClick={() => handleSort('price')}
+              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                sortConfig.key === 'price' 
+                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
+                  : 'bg-white text-gray-600 border border-gray-200'
+              }`}
+            >
+              Harga {getSortIcon('price')}
+            </button>
+          </div>
+
+          {/* Mobile Product Cards */}
+          <div className="space-y-4">
+            {getSortedProducts().map((product) => {
+              const productModifiers = getProductModifierGroups(product.id);
+              return (
+                <div key={product.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-start space-x-3 mb-4">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="h-16 w-16 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 rounded-lg bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-lg font-semibold text-gray-900 truncate pr-2">{product.name}</h3>
+                        <div className="flex flex-col items-end">
+                          {product.is_active ? 
+                            <span className="badge-success mb-2">Aktif</span> : 
+                            <span className="badge-gray mb-2">Nonaktif</span>
+                          }
+                        </div>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-500 mb-2">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        <span>{getCategoryName(product.category_id)}</span>
+                        <span className="mx-2">•</span>
+                        <span className={`font-medium ${
+                          (product.total_sold || 0) > 0 ? 'text-green-600' : 'text-gray-400'
+                        }`}>
+                          {product.total_sold || 0} terjual
+                        </span>
+                      </div>
+                      <div className="text-xl font-bold text-gray-900 mb-2">
+                        {formatRupiah(product.price)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Modifiers */}
+                  {productModifiers.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Modifiers:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {productModifiers.map((modName, idx) => (
+                          <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            {modName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => openModifiersModal(product)}
+                      className="flex-1 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-md border border-blue-200 hover:bg-blue-100 transition-colors flex items-center justify-center"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Addons
+                    </button>
+                    <button
+                      onClick={() => handleEdit(product)}
+                      className="flex-1 px-3 py-2 text-sm bg-primary-50 text-primary-600 rounded-md border border-primary-200 hover:bg-primary-100 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => openDeleteDialog(product)}
+                      className="flex-1 px-3 py-2 text-sm bg-red-50 text-red-600 rounded-md border border-red-200 hover:bg-red-100 transition-colors"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {getSortedProducts().length === 0 && (
+            <div className="text-center py-12 text-gray-500">
+              <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4-8-4m16 0v10l-8 4-8-4V7" />
+              </svg>
+              <p className="text-sm">Belum ada produk</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Product Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-2xl w-full p-6 my-8">
+          <div className="bg-white rounded-xl max-w-2xl w-full mx-4 p-4 sm:p-6 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                 {editingProduct ? 'Edit Produk' : 'Tambah Produk'}
               </h2>
               <button
                 onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 p-1"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -441,7 +638,7 @@ const Products = () => {
                   </select>
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     SKU
                   </label>
@@ -508,15 +705,15 @@ const Products = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4 border-t">
+              <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4 border-t">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="btn-secondary"
+                  className="btn-secondary w-full sm:w-auto order-2 sm:order-1"
                 >
                   Batal
                 </button>
-                <button type="submit" className="btn-primary">
+                <button type="submit" className="btn-primary w-full sm:w-auto order-1 sm:order-2">
                   {editingProduct ? 'Update' : 'Simpan'}
                 </button>
               </div>
@@ -528,19 +725,19 @@ const Products = () => {
       {/* Modifiers Management Modal */}
       {showModifiersModal && managingProductModifiers && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-2xl w-full p-6">
+          <div className="bg-white rounded-xl max-w-2xl w-full mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                   Kelola Addons / Level Kepedasan
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-600 mt-1 truncate">
                   {managingProductModifiers.name}
                 </p>
               </div>
               <button
                 onClick={handleCloseModifiersModal}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 p-1 ml-2"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -558,7 +755,7 @@ const Products = () => {
                 modifierGroups.map((group) => (
                   <div
                     key={group.id}
-                    className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                    className={`border rounded-lg p-3 sm:p-4 cursor-pointer transition-colors ${
                       selectedModifierGroups.includes(group.id)
                         ? 'border-primary-500 bg-primary-50'
                         : 'border-gray-200 hover:border-gray-300'
@@ -574,13 +771,13 @@ const Products = () => {
                           className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                         />
                       </div>
-                      <div className="ml-3 flex-1">
-                        <div className="flex items-center justify-between">
-                          <label className="font-medium text-gray-900 cursor-pointer">
+                      <div className="ml-3 flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                          <label className="font-medium text-gray-900 cursor-pointer truncate">
                             {group.name}
                           </label>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded ${
+                          <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                            <span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${
                               group.selection_type === 'single' 
                                 ? 'bg-blue-100 text-blue-800' 
                                 : 'bg-purple-100 text-purple-800'
@@ -588,7 +785,7 @@ const Products = () => {
                               {group.selection_type === 'single' ? 'Pilih 1' : 'Pilih Banyak'}
                             </span>
                             {group.is_required && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-800">
+                              <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-800 whitespace-nowrap">
                                 Wajib
                               </span>
                             )}
@@ -604,20 +801,20 @@ const Products = () => {
               )}
             </div>
 
-            <div className="flex justify-between items-center pt-4 border-t">
-              <div className="text-sm text-gray-600">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0 pt-4 border-t">
+              <div className="text-sm text-gray-600 text-center sm:text-left">
                 {selectedModifierGroups.length} modifier group dipilih
               </div>
-              <div className="flex space-x-3">
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
                 <button
                   onClick={handleCloseModifiersModal}
-                  className="btn-secondary"
+                  className="btn-secondary w-full sm:w-auto order-2 sm:order-1"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleSaveModifiers}
-                  className="btn-primary"
+                  className="btn-primary w-full sm:w-auto order-1 sm:order-2"
                 >
                   Simpan
                 </button>
