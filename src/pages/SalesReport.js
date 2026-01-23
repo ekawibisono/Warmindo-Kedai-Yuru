@@ -6,6 +6,8 @@ const SalesReport = () => {
     const [loading, setLoading] = useState(true);
     const [orders, setOrders] = useState([]);
     const [filteredOrders, setFilteredOrders] = useState([]);
+    const [showFilters, setShowFilters] = useState(false);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
     // Filter states
     const [dateFilter, setDateFilter] = useState('today');
@@ -28,6 +30,13 @@ const SalesReport = () => {
 
     useEffect(() => {
         fetchOrders();
+        
+        const handleResize = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     useEffect(() => {
@@ -279,38 +288,60 @@ const SalesReport = () => {
         <AdminLayout>
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">📊 Laporan Penjualan</h1>
-                        <p className="text-gray-600 mt-2">Analisis dan export data penjualan</p>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">📊 Laporan Penjualan</h1>
+                        <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Analisis dan export data penjualan</p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                         <button
-                            onClick={fetchOrders}
-                            className="btn-secondary flex items-center"
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="btn-secondary flex items-center justify-center sm:hidden"
                         >
                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
                             </svg>
-                            Refresh
+                            Filter & Export
                         </button>
-                        <button
-                            onClick={exportToCSV}
-                            className="btn-primary flex items-center"
-                        >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Export CSV
-                        </button>
+                        <div className={`flex flex-col sm:flex-row gap-3 ${isMobile && !showFilters ? 'hidden' : ''}`}>
+                            <button
+                                onClick={fetchOrders}
+                                className="btn-secondary flex items-center justify-center"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span className="hidden sm:inline">Refresh</span>
+                                <span className="sm:hidden">Refresh</span>
+                            </button>
+                            <button
+                                onClick={exportToCSV}
+                                className="btn-primary flex items-center justify-center"
+                            >
+                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Export CSV
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {/* Filters */}
-                <div className="card">
-                    <h3 className="font-bold text-lg mb-4">🔍 Filter Data</h3>
+                <div className={`card ${isMobile && !showFilters ? 'hidden' : ''}`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-base sm:text-lg">🔍 Filter Data</h3>
+                        <button
+                            onClick={() => setShowFilters(false)}
+                            className="sm:hidden text-gray-500 hover:text-gray-700"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* Date Filter */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Periode</label>
@@ -376,7 +407,7 @@ const SalesReport = () => {
 
                     {/* Custom Date Range */}
                     {dateFilter === 'custom' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Mulai</label>
                                 <input
@@ -400,16 +431,16 @@ const SalesReport = () => {
                 </div>
 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
                     <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                         <div className="text-sm opacity-90 mb-1">Total Revenue</div>
-                        <div className="text-3xl font-bold">{formatRupiah(summary.totalRevenue)}</div>
+                        <div className="text-2xl sm:text-3xl font-bold break-words">{formatRupiah(summary.totalRevenue)}</div>
                         <div className="text-xs opacity-75 mt-2">Dari {summary.totalOrders} completed orders</div>
                     </div>
 
                     <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
                         <div className="text-sm opacity-90 mb-1">Rata-rata Order</div>
-                        <div className="text-3xl font-bold">{formatRupiah(summary.averageOrder)}</div>
+                        <div className="text-2xl sm:text-3xl font-bold break-words">{formatRupiah(summary.averageOrder)}</div>
                         <div className="text-xs opacity-75 mt-2">Per transaksi</div>
                     </div>
 
@@ -445,64 +476,103 @@ const SalesReport = () => {
                 {/* Orders Table */}
                 <div className="card">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-lg">📋 Data Pesanan ({filteredOrders.length})</h3>
+                        <h3 className="font-bold text-base sm:text-lg">📋 Data Pesanan ({filteredOrders.length})</h3>
                     </div>
 
                     {filteredOrders.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">
-                            <div className="text-5xl mb-4">📭</div>
-                            <p>Tidak ada data dengan filter yang dipilih</p>
+                        <div className="text-center py-8 sm:py-12 text-gray-500">
+                            <div className="text-4xl sm:text-5xl mb-4">📭</div>
+                            <p className="text-sm sm:text-base">Tidak ada data dengan filter yang dipilih</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order No</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filteredOrders.map((order) => (
-                                        <tr key={order.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm font-medium text-gray-900">{order.order_no}</div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-900">{formatDate(order.created_at)}</div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-900">{order.customer_name || '-'}</div>
-                                                <div className="text-xs text-gray-500">{order.customer_phone || '-'}</div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-900">
-                                                    {order.type === 'pickup' ? '🏪 Pickup' : '🚚 Delivery'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-900">
-                                                    {order.payment_method === 'cash' ? '💵 Cash' : '📱 QRIS'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                        <>
+                            {/* Mobile Card View */}
+                            <div className="block lg:hidden space-y-4">
+                                {filteredOrders.map((order) => (
+                                    <div key={order.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <div className="font-semibold text-gray-900">{order.order_no}</div>
+                                                <div className="text-xs text-gray-500">{formatDate(order.created_at)}</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-bold text-gray-900">{formatRupiah(order.grand_total)}</div>
                                                 <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
                                                     {order.status}
                                                 </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <div className="text-sm font-bold text-gray-900">{formatRupiah(order.grand_total)}</div>
-                                            </td>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div>
+                                                <div className="text-gray-500">Customer:</div>
+                                                <div className="text-gray-900">{order.customer_name || '-'}</div>
+                                                <div className="text-xs text-gray-500">{order.customer_phone || '-'}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-gray-500">Info:</div>
+                                                <div className="text-gray-900">
+                                                    {order.type === 'pickup' ? '🏪 Pickup' : '🚚 Delivery'}
+                                                </div>
+                                                <div className="text-gray-900">
+                                                    {order.payment_method === 'cash' ? '💵 Cash' : '📱 QRIS'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Desktop Table View */}
+                            <div className="hidden lg:block overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order No</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredOrders.map((order) => (
+                                            <tr key={order.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-medium text-gray-900">{order.order_no}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900">{formatDate(order.created_at)}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900">{order.customer_name || '-'}</div>
+                                                    <div className="text-xs text-gray-500">{order.customer_phone || '-'}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900">
+                                                        {order.type === 'pickup' ? '🏪 Pickup' : '🚚 Delivery'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm text-gray-900">
+                                                        {order.payment_method === 'cash' ? '💵 Cash' : '📱 QRIS'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                                                        {order.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <div className="text-sm font-bold text-gray-900">{formatRupiah(order.grand_total)}</div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>

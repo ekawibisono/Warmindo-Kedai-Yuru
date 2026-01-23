@@ -10,16 +10,19 @@ Frontend aplikasi Point of Sale (POS) dan customer ordering Kedai Yuru, dibangun
 - Protected routes dengan role-based access control (Admin / Kasir)
 
 ### 👨‍💼 Admin & Kasir
-- **Dashboard**: Overview statistik sistem
+- **Dashboard**: Overview statistik sistem dengan responsivitas mobile/tablet
 - **Kategori**: CRUD kategori produk
 - **Produk**: CRUD produk dengan image URL dan kategori
 - **Modifier Groups**: CRUD grup modifier (single/multi selection & required)
 - **Modifiers**: CRUD modifier dengan price delta
+- **Hot Deals Management**: Kelola produk hot deals dengan sistem tier otomatis berdasarkan jumlah terjual
 - **Kitchen Queue**: Monitor dan update status pesanan
 - **Verifikasi Pembayaran**: Review dan verifikasi pembayaran QRIS & POS
+- **Sales Report**: Laporan penjualan dengan filter dan export CSV
 - **Store Settings**: Atur jam buka/tutup otomatis & status order
-- **Discount & Hot Deals**: Kelola diskon dan produk promo
+- **Discount Management**: Kelola diskon dan kode promo
 - **Staff Management**: Kelola akun staff & staff key
+- **WhatsApp Settings**: Konfigurasi notifikasi WhatsApp
 
 ### 👤 Customer Interface (Web Ordering)
 - Login dengan Google khusus untuk customer
@@ -35,8 +38,10 @@ Frontend aplikasi Point of Sale (POS) dan customer ordering Kedai Yuru, dibangun
 
 - **React** 18.2.0
 - **React Router** v6
-- **TailwindCSS** v3
+- **TailwindCSS** v3 (dengan responsive design untuk mobile/tablet)
 - **Axios** untuk API calls
+- **React App Rewired** untuk custom webpack configuration
+- **JavaScript Obfuscation** untuk production build security
 
 ## Installation
 
@@ -86,41 +91,58 @@ Aplikasi akan berjalan di `http://localhost:3000`
 ```
 Warmindo-Kedai-Yuru/
 ├── public/
-│   └── index.html
+│   ├── index.html
+│   ├── manifest.json
+│   ├── robots.txt
+│   └── sitemap.xml
+├── scripts/
+│   └── generate-seo-files.js
 ├── src/
 │   ├── components/
 │   │   ├── admin/
-│   │   │   └── AdminLayout.js        # Admin sidebar layout
+│   │   │   ├── AdminLayout.js        # Admin sidebar layout (responsive)
+│   │   │   └── Receipt.js            # Receipt component
+│   │   ├── common/
+│   │   │   ├── ConfirmDialog.js      # Confirmation dialog component
+│   │   │   ├── Toast.js              # Toast notification system
+│   │   │   └── ui.js                 # UI utility components
 │   │   ├── customer/
 │   │   │   ├── Cart.js               # Keranjang customer
-│   │   │   ├── Checkout.js           # Checkout online customer
-│   │   │   └── CustomerGoogleLogin.js# Tombol login Google customer
+│   │   │   └── Checkout.js           # Checkout online customer
 │   │   └── shared/
 │   │       └── ProtectedRoute.js     # Route protection (staff)
 │   ├── contexts/
-│   │   ├── AuthContext.js            # Staff authentication context
-│   │   └── CustomerAuthContext.js    # Customer authentication context (Google + JWT)
+│   │   └── AuthContext.js            # Staff authentication context
 │   ├── pages/
-│   │   ├── Login.js                  # Staff login page
-│   │   ├── AdminDashboard.js         # Admin dashboard
+│   │   ├── AdminDashboard.js         # Admin dashboard (mobile responsive)
 │   │   ├── Categories.js             # Category management
 │   │   ├── Products.js               # Product management
 │   │   ├── ModifierGroups.js         # Modifier group management
 │   │   ├── Modifiers.js              # Modifier management
+│   │   ├── HotDeals.js               # Hot Deals management (mobile responsive)
 │   │   ├── Kitchen.js                # Kitchen queue
+│   │   ├── Login.js                  # Staff login page
+│   │   ├── Orders.js                 # Order management
+│   │   ├── OrderTracking.js          # Halaman tracking pesanan publik
 │   │   ├── Payments.js               # Payment verification
 │   │   ├── POSCounter.js             # POS kasir (order langsung)
+│   │   ├── SalesReport.js            # Sales report dengan export CSV (mobile responsive)
+│   │   ├── StaffManagement.js        # Staff management
+│   │   ├── StoreSettings.js          # Store settings
 │   │   ├── CustomerMenu.js           # Customer menu & order page
-│   │   └── OrderTracking.js          # Halaman tracking pesanan publik
+│   │   ├── Discounts.js              # Discount management
+│   │   └── WhatsAppSettings.js       # WhatsApp notification settings
 │   ├── services/
 │   │   └── api.js                    # API service layer (publicAPI & staffAPI)
 │   ├── App.js                       # Main app with routing
 │   ├── index.js                     # Entry point
 │   └── index.css                    # Tailwind CSS
 ├── .env.example
+├── .env.production
+├── config-overrides.js              # React App Rewired configuration
 ├── package.json
-├── tailwind.config.js
-└── postcss.config.js
+├── postcss.config.js
+└── tailwind.config.js
 ```
 
 ## API Integration (Ringkas)
@@ -151,16 +173,38 @@ Aplikasi ini terintegrasi dengan backend API dengan beberapa kelompok endpoint u
 - `GET/POST/PATCH/DELETE /api/staff/catalog/...`   - CRUD kategori, produk, modifier groups, modifiers, mapping
 - `GET/PUT/PATCH /api/staff/settings`              - Store settings & auto-schedule
 - `GET/POST/PUT/DELETE /api/staff/discounts...`    - Manajemen diskon
-- `GET/POST/DELETE /api/staff/hot-deals...`        - Manajemen hot deals
+- `GET/POST/PATCH/DELETE /api/staff/hot-deals...`  - Manajemen hot deals & tier system
 - `GET/POST/PATCH/DELETE /api/staff/management...` - Manajemen staff & staff key
+- `GET  /api/staff/orders/all`                     - Semua pesanan untuk sales report
+- `GET  /api/staff/hot-deals/stats`                - Statistik hot deals
+- `POST /api/staff/hot-deals/auto-update`          - Update otomatis hot deals berdasarkan tier
 
 ## Build untuk Production
 
 ```bash
+# Development build
 npm run build
+
+# Production build dengan obfuscation
+npm run build1
 ```
 
 Files akan di-generate di folder `build/`
+
+## Mobile & Tablet Support
+
+Aplikasi ini telah dioptimasi untuk perangkat mobile dan tablet dengan:
+
+- **Responsive Design**: Semua halaman admin menggunakan breakpoints Tailwind yang optimal
+- **Mobile-First Approach**: Layout dirancang mulai dari mobile kemudian desktop
+- **Touch-Friendly Interface**: Button sizes dan spacing yang optimal untuk touch devices
+- **Dual View System**: Card view untuk mobile, table view untuk desktop pada data-heavy pages
+- **Adaptive Typography**: Text sizing yang menyesuaikan ukuran layar
+
+### Breakpoints:
+- **Mobile**: < 640px (sm)
+- **Tablet**: 640px - 1024px (sm - lg)
+- **Desktop**: ≥ 1024px (lg+)
 
 ## Notes
 
@@ -168,13 +212,20 @@ Files akan di-generate di folder `build/`
 - Customer authentication menggunakan Google OAuth + JWT (disimpan di localStorage).
 - Image produk saat ini menggunakan URL eksternal (belum ada upload dari frontend).
 - Bukti pembayaran QRIS dan receipt disimpan di backend dan diakses via file server.
+- Hot Deals system menggunakan tier otomatis berdasarkan jumlah produk terjual.
+- Sales Report mendukung export ke CSV dengan berbagai filter.
+- Semua halaman admin telah dioptimasi untuk mobile dan tablet responsiveness.
+- Production build menggunakan JavaScript obfuscation untuk keamanan.
 
 ## Future Enhancements
 
 - [ ] Image upload functionality untuk produk dari frontend
-- [ ] Laporan dan analytics yang lebih lengkap di dashboard
-- [ ] Multi-language support
+- [ ] Real-time notifications dengan WebSocket
+- [ ] Advanced analytics dashboard dengan charts
+- [ ] Multi-language support (ID/EN)
 - [ ] PWA offline mode untuk kasir
+- [ ] Dark mode theme
+- [ ] Advanced reporting dengan date range picker
 
 ## Support
 

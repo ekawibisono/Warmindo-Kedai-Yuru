@@ -229,10 +229,10 @@ const AdminDashboard = () => {
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
               {new Date().toLocaleDateString('id-ID', {
                 weekday: 'long',
                 year: 'numeric',
@@ -243,28 +243,29 @@ const AdminDashboard = () => {
           </div>
           <button
             onClick={fetchDashboardData}
-            className="btn-secondary flex items-center"
+            className="btn-secondary flex items-center justify-center text-sm sm:text-base"
           >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
+            <span className="sm:hidden">🔄</span>
           </button>
         </div>
 
         {/* Sales Summary Cards */}
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">📊 Laporan Penjualan</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">📊 Laporan Penjualan</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
             {/* Today's Sales */}
             <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
               <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-blue-100 text-sm">Penjualan Hari Ini</p>
-                  <h3 className="text-3xl font-bold mt-2">{formatRupiah(salesData.today.total)}</h3>
+                  <h3 className="text-2xl sm:text-3xl font-bold mt-2 break-words">{formatRupiah(salesData.today.total)}</h3>
                 </div>
-                <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                <div className="bg-white bg-opacity-20 p-2 sm:p-3 rounded-lg flex-shrink-0">
+                  <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
                   </svg>
@@ -288,12 +289,12 @@ const AdminDashboard = () => {
             {/* Yesterday's Sales */}
             <div className="card">
               <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-gray-600 text-sm">Penjualan Kemarin</p>
-                  <h3 className="text-2xl font-bold text-gray-900 mt-2">{formatRupiah(salesData.yesterday.total)}</h3>
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2 break-words">{formatRupiah(salesData.yesterday.total)}</h3>
                 </div>
-                <div className="bg-gray-100 p-3 rounded-lg">
-                  <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <div className="bg-gray-100 p-2 sm:p-3 rounded-lg flex-shrink-0">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                   </svg>
                 </div>
@@ -304,12 +305,12 @@ const AdminDashboard = () => {
             {/* This Month's Sales */}
             <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
               <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-green-100 text-sm">Penjualan Bulan Ini</p>
-                  <h3 className="text-3xl font-bold mt-2">{formatRupiah(salesData.thisMonth.total)}</h3>
+                  <h3 className="text-2xl sm:text-3xl font-bold mt-2 break-words">{formatRupiah(salesData.thisMonth.total)}</h3>
                 </div>
-                <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                <div className="bg-white bg-opacity-20 p-2 sm:p-3 rounded-lg flex-shrink-0">
+                  <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                   </svg>
                 </div>
@@ -332,12 +333,12 @@ const AdminDashboard = () => {
             {/* Last Month's Sales */}
             <div className="card">
               <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-gray-600 text-sm">Penjualan Bulan Lalu</p>
-                  <h3 className="text-2xl font-bold text-gray-900 mt-2">{formatRupiah(salesData.lastMonth.total)}</h3>
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2 break-words">{formatRupiah(salesData.lastMonth.total)}</h3>
                 </div>
-                <div className="bg-gray-100 p-3 rounded-lg">
-                  <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <div className="bg-gray-100 p-2 sm:p-3 rounded-lg flex-shrink-0">
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                     <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
                   </svg>
@@ -350,58 +351,83 @@ const AdminDashboard = () => {
 
         {/* System Stats */}
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">📈 Statistik Sistem</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">📈 Statistik Sistem</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
             <div className="card text-center">
-              <div className="text-3xl mb-2">🏷️</div>
-              <p className="text-2xl font-bold text-gray-900">{stats.categories}</p>
-              <p className="text-sm text-gray-600">Kategori</p>
+              <div className="text-2xl sm:text-3xl mb-2">🏷️</div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.categories}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Kategori</p>
             </div>
 
             <div className="card text-center">
-              <div className="text-3xl mb-2">📦</div>
-              <p className="text-2xl font-bold text-gray-900">{stats.products}</p>
-              <p className="text-sm text-gray-600">Produk</p>
+              <div className="text-2xl sm:text-3xl mb-2">📦</div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.products}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Produk</p>
             </div>
 
             <div className="card text-center">
-              <div className="text-3xl mb-2">⚙️</div>
-              <p className="text-2xl font-bold text-gray-900">{stats.modifierGroups}</p>
-              <p className="text-sm text-gray-600">Modifier Groups</p>
+              <div className="text-2xl sm:text-3xl mb-2">⚙️</div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.modifierGroups}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Modifier Groups</p>
             </div>
 
             <div className="card text-center">
-              <div className="text-3xl mb-2">📋</div>
-              <p className="text-2xl font-bold text-gray-900">{stats.modifiers}</p>
-              <p className="text-sm text-gray-600">Modifiers</p>
+              <div className="text-2xl sm:text-3xl mb-2">📋</div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.modifiers}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Modifiers</p>
             </div>
 
             <div className="card text-center">
-              <div className="text-3xl mb-2">⏳</div>
-              <p className="text-2xl font-bold text-orange-600">{stats.pendingPayments}</p>
-              <p className="text-sm text-gray-600">Pending Payment</p>
+              <div className="text-2xl sm:text-3xl mb-2">⏳</div>
+              <p className="text-xl sm:text-2xl font-bold text-orange-600">{stats.pendingPayments}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Pending Payment</p>
             </div>
 
             <div className="card text-center">
-              <div className="text-3xl mb-2">🍳</div>
-              <p className="text-2xl font-bold text-blue-600">{stats.kitchenQueue}</p>
-              <p className="text-sm text-gray-600">Kitchen Queue</p>
+              <div className="text-2xl sm:text-3xl mb-2">🍳</div>
+              <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats.kitchenQueue}</p>
+              <p className="text-xs sm:text-sm text-gray-600">Kitchen Queue</p>
             </div>
           </div>
         </div>
 
         {/* Recent Orders */}
         <div className="card">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-900">🕒 Pesanan Terbaru</h2>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">🕒 Pesanan Terbaru</h2>
             <a href="/admin/orders" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
               Lihat Semua →
             </a>
           </div>
 
           {recentOrders.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <>
+              {/* Mobile Card View */}
+              <div className="block lg:hidden space-y-4">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="font-semibold text-gray-900 text-sm">{order.order_no}</div>
+                        <div className="text-xs text-gray-500">{formatDate(order.created_at)}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-gray-900 text-sm">{formatRupiah(order.grand_total)}</div>
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full mt-1 ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      <span className="font-medium">Customer:</span> {order.customer_name || 'Walk-in'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -445,9 +471,10 @@ const AdminDashboard = () => {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           ) : (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-gray-500 text-sm sm:text-base">
               Belum ada pesanan hari ini
             </div>
           )}
