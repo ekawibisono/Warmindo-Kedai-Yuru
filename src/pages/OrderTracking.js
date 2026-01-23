@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { publicAPI } from '../services/api';
 
@@ -9,64 +9,417 @@ const OrderTracking = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // WebSocket real-time states - simplified
+  const [wsConnected, setWsConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const MAX_RECONNECT_ATTEMPTS = 3;
+  
+  // Token expiry states - HANYA untuk UI countdown warning
+  const [tokenExpired, setTokenExpired] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(null);
 
-  // Auto-load order from URL params
+  // Function to calculate time remaining - HANYA untuk countdown UI, BUKAN untuk blocking
+  const calculateTimeRemaining = useCallback((orderData) => {
+    const completedStatuses = ['completed', 'delivered', 'picked_up'];
+    
+    console.log('⏰ Calculating time remaining for order:', {
+      status: orderData.status,
+      isCompleted: completedStatuses.includes(orderData.status),
+      completed_at: orderData.completed_at,
+      updated_at: orderData.updated_at
+    });
+    
+    if (!completedStatuses.includes(orderData.status)) {
+      console.log('⏰ Order not completed yet, no countdown needed');
+      return null; // Order belum selesai, tidak perlu countdown
+    }
+
+    const completionTime = orderData.completed_at || orderData.updated_at;
+    
+    if (!completionTime) {
+      console.log('⏰ No completion time found');
+      return null;
+    }
+
+    const completedAt = new Date(completionTime);
+    const now = new Date();
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    const timeElapsed = now - completedAt;
+    const timeLeft = fiveMinutesInMs - timeElapsed;
+
+    console.log('⏰ Countdown calculation:', {
+      completedAt: completedAt.toISOString(),
+      now: now.toISOString(),
+      timeElapsed: timeElapsed / 1000 + 's',
+      timeLeft: timeLeft / 1000 + 's'
+    });
+
+    // Return time left in seconds (bisa negatif jika sudah expired)
+    return timeLeft > 0 ? Math.ceil(timeLeft / 1000) : 0;
+  }, []);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setWsConnected(false);
+    setConnectionAttempts(0);
+  }, []);
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  // Simple WebSocket connection
+  const connectToWebSocket = useCallback((orderNumber, trackingToken) => {
+    if (!orderNumber || !trackingToken || wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    try {
+      // Clean up existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = process.env.REACT_APP_WS_HOST || window.location.host.replace('3000', '3001');
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/order-tracking?order=${orderNumber}&token=${trackingToken}`;
+      
+      console.log('📡 Connecting to WebSocket:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('✅ WebSocket connected for real-time updates');
+        setWsConnected(true);
+        setConnectionAttempts(0);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('📨 Real-time update received:', data);
+          
+          if (data.type === 'order_update' && data.order) {
+            // Real-time update from admin panel!
+            const updatedOrder = {
+              ...data.order,
+              payment: data.order.payment || order?.payment
+            };
+            
+            setOrder(updatedOrder);
+            setLastUpdated(new Date());
+            
+            // Update time remaining if completed
+            const timeLeft = calculateTimeRemaining(updatedOrder);
+            setTimeRemaining(timeLeft);
+            
+            // Stop connections if order completed
+            const finalStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+            if (finalStatuses.includes(updatedOrder.status)) {
+              disconnectWebSocket();
+              stopPolling();
+            }
+          }
+        } catch (err) {
+          console.error('❌ Error parsing WebSocket data:', err);
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log('🔌 WebSocket closed:', event.code);
+        setWsConnected(false);
+        wsRef.current = null;
+        
+        // Auto-reconnect for real-time updates
+        if (!tokenExpired && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+          const delay = Math.min(1000 * (connectionAttempts + 1), 10000); // Max 10s
+          console.log(`🔄 Reconnecting WebSocket in ${delay}ms`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setConnectionAttempts(prev => prev + 1);
+            connectToWebSocket(orderNumber, trackingToken);
+          }, delay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.log('⚠️ WebSocket error, falling back to polling');
+        setWsConnected(false);
+      };
+      
+    } catch (err) {
+      console.error('❌ Failed to create WebSocket:', err);
+      setWsConnected(false);
+    }
+  }, [calculateTimeRemaining, disconnectWebSocket, stopPolling, connectionAttempts, order?.payment, tokenExpired]);
+
+  // Polling fallback when WebSocket fails
+  const startPolling = useCallback((orderNumber, trackingToken) => {
+    console.log('🔄 Starting polling for updates');
+    
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
+    const interval = setInterval(async () => {
+      if (!tokenExpired) {
+        try {
+          const response = await publicAPI.getOrder(orderNumber, trackingToken);
+          const orderData = response.data;
+
+          let currentOrder = null;
+          if (orderData.order) {
+            currentOrder = {
+              ...orderData.order,
+              payment: orderData.last_payment
+            };
+          } else {
+            currentOrder = orderData;
+          }
+
+          setOrder(currentOrder);
+          setLastUpdated(new Date());
+          
+          // Check if completed
+          const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+          if (completedStatuses.includes(currentOrder.status)) {
+            stopPolling();
+            disconnectWebSocket();
+          }
+        } catch (error) {
+          console.log('⚠️ Polling error:', error);
+        }
+      } else {
+        stopPolling();
+      }
+    }, 10000); // 10 seconds - faster for better updates
+    
+    pollingIntervalRef.current = interval;
+  }, [tokenExpired, disconnectWebSocket, stopPolling]);
+
+  // Format remaining time to display
+  const formatTimeRemaining = (seconds) => {
+    if (seconds <= 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      disconnectWebSocket();
+      stopPolling();
+    };
+  }, [disconnectWebSocket, stopPolling]);
+
+  // Start real-time connection after order is loaded - TEMPORARILY DISABLED
+  useEffect(() => {
+    // DISABLED FOR DEBUGGING - infinite loop protection
+    console.log('🔧 Real-time updates temporarily disabled to prevent rate limiting');
+    // return; // Commented out to avoid unreachable code warning
+    
+    if (order && orderNo && token && !tokenExpired) {
+      const finalStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+      
+      if (!finalStatuses.includes(order.status)) {
+        console.log('🚀 Starting real-time updates for active order');
+        
+        // Try WebSocket first for instant updates
+        connectToWebSocket(orderNo, token);
+        
+        // Start polling as backup (will be faster if WebSocket fails)
+        setTimeout(() => {
+          if (!wsConnected) {
+            console.log('📡 WebSocket not connected, using polling for updates');
+            startPolling(orderNo, token);
+          }
+        }, 3000);
+      }
+    }
+  }, [order, orderNo, token, tokenExpired, connectToWebSocket, startPolling, wsConnected]);
+
+  // Countdown timer - hanya untuk UI warning
+  useEffect(() => {
+    if (!order || tokenExpired || timeRemaining === null || timeRemaining <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          // Countdown selesai, refresh data
+          if (orderNo && token) {
+            publicAPI.getOrder(orderNo, token).then(response => {
+              const orderData = response.data;
+              let currentOrder = null;
+              if (orderData.order) {
+                currentOrder = {
+                  ...orderData.order,
+                  payment: orderData.last_payment
+                };
+              } else {
+                currentOrder = orderData;
+              }
+              setOrder(currentOrder);
+              setLastUpdated(new Date());
+            }).catch(err => {
+              console.log('Countdown refresh error:', err);
+            });
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [order, tokenExpired, timeRemaining, orderNo, token]);
+
   useEffect(() => {
     const urlOrderNo = searchParams.get('order');
     const urlToken = searchParams.get('token');
-    // eslint-disable-next-line no-unused-vars
-    const fromUpload = searchParams.get('uploaded');
 
     if (urlOrderNo && urlToken) {
       setOrderNo(urlOrderNo);
       setToken(urlToken);
-      fetchOrder(urlOrderNo, urlToken);
+      
+      // Initial fetch without dependencies to avoid circular reference
+      const initialFetch = async () => {
+        setLoading(true);
+        try {
+          const response = await publicAPI.getOrder(urlOrderNo, urlToken);
+          const orderData = response.data;
+
+          let currentOrder = null;
+          if (orderData.order) {
+            currentOrder = {
+              ...orderData.order,
+              payment: orderData.last_payment
+            };
+          } else {
+            currentOrder = orderData;
+          }
+
+          setOrder(currentOrder);
+          setLastUpdated(new Date());
+          setError('');
+          
+          // Calculate time remaining
+          const timeLeft = calculateTimeRemaining(currentOrder);
+          setTimeRemaining(timeLeft);
+          
+          // Start real-time updates for active orders
+          const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+          if (!completedStatuses.includes(currentOrder.status)) {
+            console.log('🚀 Order loaded, enabling real-time updates');
+            // Will be handled by the useEffect above
+          }
+        } catch (error) {
+          console.error('Initial fetch error:', error);
+          setError('Gagal memuat pesanan. Silakan coba lagi.');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      initialFetch();
     }
-  }, [searchParams]);
-
-  const fetchOrder = async (orderNumber, trackingToken) => {
-    setError('');
-    setLoading(true);
-
-    try {
-      const response = await publicAPI.getOrder(orderNumber, trackingToken);
-      const orderData = response.data;
-
-      if (orderData.order) {
-        const transformedOrder = {
-          ...orderData.order,
-          payment: orderData.last_payment
-        };
-        setOrder(transformedOrder);
-      } else {
-        setOrder(orderData);
-      }
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || '';
-      const httpStatus = err.response?.status;
-
-      if (httpStatus === 410 ||
-        errorMessage.includes('no longer available') ||
-        errorMessage.includes('completed') ||
-        errorMessage.includes('expired')) {
-        setError(
-          '✅ Pesanan Anda sudah selesai!\n\n' +
-          'Tracking untuk pesanan ini sudah tidak tersedia karena pesanan Anda sudah selesai dan diterima.\n\n' +
-          'Terima kasih telah memesan di Kedai Yuru! 🙏'
-        );
-      } else {
-        setError('Pesanan tidak ditemukan. Periksa kembali nomor pesanan dan token Anda.');
-      }
-
-      setOrder(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [searchParams, calculateTimeRemaining]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    fetchOrder(orderNo, token);
+    setTokenExpired(false);
+    setTimeRemaining(null);
+    setError('');
+    disconnectWebSocket();
+    stopPolling();
+    
+    if (orderNo && token) {
+      setLoading(true);
+      try {
+        const response = await publicAPI.getOrder(orderNo, token);
+        const orderData = response.data;
+
+        let currentOrder = null;
+        if (orderData.order) {
+          currentOrder = {
+            ...orderData.order,
+            payment: orderData.last_payment
+          };
+        } else {
+          currentOrder = orderData;
+        }
+
+        setOrder(currentOrder);
+        setLastUpdated(new Date());
+        setError('');
+        
+        // Calculate time remaining
+        const timeLeft = calculateTimeRemaining(currentOrder);
+        setTimeRemaining(timeLeft);
+        
+        // Start polling if not completed
+        const completedStatuses = ['completed', 'delivered', 'picked_up'];
+        if (!completedStatuses.includes(currentOrder.status)) {
+          startPolling(orderNo, token);
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        setError('Pesanan tidak ditemukan. Periksa kembali nomor pesanan dan token Anda.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    if (!tokenExpired && orderNo && token) {
+      setLoading(true);
+      try {
+        const response = await publicAPI.getOrder(orderNo, token);
+        const orderData = response.data;
+
+        let currentOrder = null;
+        if (orderData.order) {
+          currentOrder = {
+            ...orderData.order,
+            payment: orderData.last_payment
+          };
+        } else {
+          currentOrder = orderData;
+        }
+
+        setOrder(currentOrder);
+        setLastUpdated(new Date());
+        setError('');
+        
+        // Calculate time remaining
+        const timeLeft = calculateTimeRemaining(currentOrder);
+        setTimeRemaining(timeLeft);
+      } catch (error) {
+        console.error('Manual refresh error:', error);
+        setError('Gagal memperbarui pesanan. Silakan coba lagi.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const formatRupiah = (number) => {
@@ -91,18 +444,26 @@ const OrderTracking = () => {
         hour: '2-digit',
         minute: '2-digit'
       });
-    } catch (error) {
+    } catch (err) {
       return '-';
     }
   };
 
-  const getWhatsAppLink = (orderNo, customerName) => {
-    const waNumber = process.env.REACT_APP_WHATSAPP_NUMBER || '6285881315824';
-    const message = `Halo Kak, Mau Menanyakan Tentang Pesanan Saya\n\nOrder ID: ${orderNo}\nNama: ${customerName}`;
-    return `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
+  const formatTime = (date) => {
+    if (!date) return '-';
+    return date.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
   };
 
-  // Enhanced timeline steps for Delivery
+  const getWhatsAppLink = (orderNumber, customerName) => {
+    const waNumber = process.env.REACT_APP_WHATSAPP_NUMBER || '6285881315824';
+    const message = 'Halo Kak, Mau Menanyakan Tentang Pesanan Saya\n\nOrder ID: ' + orderNumber + '\nNama: ' + customerName;
+    return 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(message);
+  };
+
   const getDeliveryTimeline = (paymentMethod) => {
     const isQRIS = paymentMethod === 'qris';
     
@@ -152,7 +513,6 @@ const OrderTracking = () => {
     ];
   };
 
-  // Enhanced timeline steps for Pickup
   const getPickupTimeline = (paymentMethod) => {
     const isQRIS = paymentMethod === 'qris';
     
@@ -177,7 +537,7 @@ const OrderTracking = () => {
       },
       {
         status: 'ready',
-        label: 'Masakan Pesanan Anda Sudah Siap',
+        label: 'Pesanan Anda Sudah Siap',
         icon: '✓',
         description: 'Pesanan Anda sudah siap untuk diambil'
       },
@@ -202,21 +562,6 @@ const OrderTracking = () => {
     ];
   };
 
-  // Get appropriate timeline based on order type and status
-  const getTimeline = (orderType, paymentMethod, orderStatus) => {
-    // If order is canceled/rejected, show rejected timeline
-    if (orderStatus === 'canceled' || orderStatus === 'cancelled' || orderStatus === 'rejected') {
-      return getRejectedTimeline(paymentMethod);
-    }
-    
-    if (orderType === 'delivery') {
-      return getDeliveryTimeline(paymentMethod);
-    } else {
-      return getPickupTimeline(paymentMethod);
-    }
-  };
-
-  // Timeline for rejected/canceled orders
   const getRejectedTimeline = (paymentMethod) => {
     const isQRIS = paymentMethod === 'qris';
     
@@ -238,44 +583,176 @@ const OrderTracking = () => {
     ];
   };
 
-  // Map backend status to timeline status
+  const getTimeline = (orderType, paymentMethod, orderStatus) => {
+    if (orderStatus === 'canceled' || orderStatus === 'cancelled' || orderStatus === 'rejected') {
+      return getRejectedTimeline(paymentMethod);
+    }
+    
+    if (orderType === 'delivery') {
+      return getDeliveryTimeline(paymentMethod);
+    } else {
+      return getPickupTimeline(paymentMethod);
+    }
+  };
+
   const mapStatusToTimeline = (backendStatus, orderType) => {
-    // Handle canceled/rejected status
     if (backendStatus === 'canceled' || backendStatus === 'cancelled' || backendStatus === 'rejected') {
       return 'canceled';
     }
 
-    // For delivery
     if (orderType === 'delivery') {
       const deliveryMap = {
         'pending': 'pending',
         'confirmed': 'confirmed',
         'preparing': 'preparing',
         'ready': 'ready',
-        'delivering': 'delivering',  // New status
-        'delivered': 'delivered',    // New status
+        'delivering': 'delivering',
+        'delivered': 'delivered',
         'completed': 'completed'
       };
       return deliveryMap[backendStatus] || backendStatus;
     }
     
-    // For pickup
     const pickupMap = {
       'pending': 'pending',
       'confirmed': 'confirmed',
       'preparing': 'preparing',
       'ready': 'ready',
-      'waiting_pickup': 'waiting_pickup',  // New status
-      'picked_up': 'picked_up',            // New status
+      'waiting_pickup': 'waiting_pickup',
+      'picked_up': 'picked_up',
       'completed': 'completed'
     };
     return pickupMap[backendStatus] || backendStatus;
   };
 
-  // Get current step index in timeline
   const getCurrentStepIndex = (currentStatus, timeline) => {
     const index = timeline.findIndex(step => step.status === currentStatus);
     return index === -1 ? 0 : index;
+  };
+
+  // Timeline component
+  const TimelineSection = () => {
+    if (!order) return null;
+
+    const paymentMethod = order.payment?.method || order.payment_method;
+    const timeline = getTimeline(order.type, paymentMethod, order.status);
+    const currentStatus = mapStatusToTimeline(order.status, order.type);
+    const currentIndex = getCurrentStepIndex(currentStatus, timeline);
+    const isRejected = order.status === 'canceled' || order.status === 'cancelled' || order.status === 'rejected';
+    const progressWidth = (currentIndex / (timeline.length - 1)) * 100;
+
+    return (
+      <div className="p-6">
+        {/* Desktop Timeline */}
+        <div className="hidden md:block">
+          <div className="relative">
+            {/* Progress Bar Background */}
+            <div className="absolute top-6 left-0 right-0 h-1 bg-gray-200 rounded-full"></div>
+            {/* Progress Bar Fill */}
+            <div 
+              className={'absolute top-6 left-0 h-1 rounded-full transition-all duration-500 ease-out ' + (isRejected ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-primary-500 to-primary-600')}
+              style={{ width: progressWidth + '%' }}
+            ></div>
+            
+            {/* Timeline Steps */}
+            <div className="relative flex justify-between">
+              {timeline.map((step, index) => {
+                const isCompleted = index <= currentIndex;
+                const isCurrent = index === currentIndex;
+                const isRejectedStep = isRejected && step.status === 'canceled';
+                const stepWidth = 100 / timeline.length;
+
+                let iconContainerClass = 'relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-4 transition-all duration-300 ';
+                if (isRejectedStep) {
+                  iconContainerClass += 'bg-red-500 border-white shadow-lg scale-110';
+                } else if (isCompleted) {
+                  if (isCurrent) {
+                    iconContainerClass += 'bg-primary-600 border-white shadow-lg scale-110 animate-pulse';
+                  } else {
+                    iconContainerClass += 'bg-primary-600 border-white shadow-md';
+                  }
+                } else {
+                  iconContainerClass += 'bg-white border-gray-300';
+                }
+
+                let labelClass = 'text-xs sm:text-sm font-semibold mb-1 leading-tight ';
+                if (isRejectedStep) {
+                  labelClass += 'text-red-600';
+                } else if (isCurrent) {
+                  labelClass += 'text-primary-600';
+                } else if (isCompleted) {
+                  labelClass += 'text-gray-900';
+                } else {
+                  labelClass += 'text-gray-400';
+                }
+
+                return (
+                  <div key={step.status} className="flex flex-col items-center" style={{ width: stepWidth + '%' }}>
+                    <div className={iconContainerClass}>
+                      <span className={(isCompleted || isRejectedStep) ? 'text-xl filter brightness-0 invert' : 'text-xl opacity-50'}>
+                        {step.icon}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-center px-2">
+                      <p className={labelClass}>{step.label}</p>
+                      {isCurrent && !isRejected && (
+                        <span className="inline-block px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full font-medium">
+                          Saat Ini
+                        </span>
+                      )}
+                      {isCompleted && !isCurrent && (
+                        <span className="inline-block text-green-600 text-xs font-medium">✓ Selesai</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Current Step Description */}
+          <div className={'mt-8 p-4 rounded-lg border ' + (isRejected ? 'bg-red-50 border-red-200' : 'bg-primary-50 border-primary-200')}>
+            <p className="text-sm text-gray-700">
+              <span className={'font-semibold ' + (isRejected ? 'text-red-700' : 'text-primary-700')}>
+                Status saat ini:
+              </span>{' '}
+              {timeline[currentIndex]?.description}
+            </p>
+          </div>
+        </div>
+
+        {/* Mobile Timeline */}
+        <div className="md:hidden">
+          <div className={'rounded-xl p-4 border ' + (isRejected ? 'bg-red-50 border-red-200' : 'bg-primary-50 border-primary-200')}>
+            <div className="flex items-center gap-3">
+              <div className={'flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ' + (isRejected ? 'bg-red-500' : 'bg-primary-600')}>
+                <span className="text-xl filter brightness-0 invert">
+                  {timeline[currentIndex]?.icon}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={'text-xs font-medium ' + (isRejected ? 'text-red-600' : 'text-primary-600')}>
+                  {isRejected ? 'DIBATALKAN' : 'Step ' + (currentIndex + 1) + '/' + timeline.length}
+                </p>
+                <p className="font-bold text-gray-900 truncate">
+                  {timeline[currentIndex]?.label}
+                </p>
+              </div>
+              {!isRejected && (
+                <div className="flex-shrink-0 text-right">
+                  <span className="text-lg font-bold text-primary-600">
+                    {Math.round(((currentIndex + 1) / timeline.length) * 100)}%
+                  </span>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              {timeline[currentIndex]?.description}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -338,23 +815,137 @@ const OrderTracking = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded">
+          <div className={tokenExpired ? 'bg-orange-50 border-l-4 border-orange-400 p-4 mb-6 rounded' : 'bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded'}>
             <div className="flex">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                <svg className={'h-5 w-5 ' + (tokenExpired ? 'text-orange-400' : 'text-red-400')} fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-700 whitespace-pre-line">{error}</p>
+                <p className={'text-sm whitespace-pre-line ' + (tokenExpired ? 'text-orange-700' : 'text-red-700')}>{error}</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Order Details */}
-        {order && (
+        {order && !tokenExpired && (
           <div className="space-y-6">
+            {/* Token Expiry Warning - Show for completed orders */}
+            {timeRemaining !== null && timeRemaining > 0 && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm text-yellow-700">
+                      <span className="font-semibold">Perhatian:</span> Token tracking akan kedaluwarsa dalam{' '}
+                      <span className="font-bold text-yellow-900">{formatTimeRemaining(timeRemaining)}</span>
+                      {' '}untuk alasan keamanan.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Success Banner for Completed Orders */}
+            {(order.status === 'completed' || order.status === 'delivered' || order.status === 'picked_up') && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+                <div className="flex justify-center mb-3">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-3xl">✅</span>
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-green-800 mb-2">Pesanan Anda Sudah Selesai!</h3>
+                <p className="text-sm text-green-700">
+                  Terima kasih telah memesan di Kedai Yuru! 🙏
+                </p>
+              </div>
+            )}
+
+            {/* Auto-Refresh Status Bar */}
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <div className="flex items-center justify-between">
+                {/* Live indicator */}
+                <div className="flex items-center gap-2">
+                  {tokenExpired ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                      </span>
+                      <span className="text-sm text-orange-600 font-medium">Token Expired</span>
+                      <span className="text-xs text-gray-500">• WebSocket dinonaktifkan</span>
+                    </>
+                  ) : order && (order.status === 'completed' || order.status === 'delivered' || order.status === 'picked_up') ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                      <span className="text-sm text-green-600 font-medium">Selesai</span>
+                      <span className="text-xs text-gray-500">• Pesanan telah selesai</span>
+                    </>
+                  ) : wsConnected ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                      <span className="text-sm text-green-600 font-medium">🚀 Real-time</span>
+                      <span className="text-xs text-gray-500">• Update otomatis dari admin</span>
+                    </>
+                  ) : pollingIntervalRef.current ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                      </span>
+                      <span className="text-sm text-blue-600 font-medium">📡 Polling</span>
+                      <span className="text-xs text-gray-500">• Update setiap 10 detik</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-400"></span>
+                      </span>
+                      <span className="text-sm text-gray-500 font-medium">Tidak terhubung</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Right side: last updated & refresh button */}
+                <div className="flex items-center gap-3">
+                  {lastUpdated && (
+                    <span className="text-xs text-gray-500">
+                      {formatTime(lastUpdated)}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={loading || tokenExpired || ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order?.status)}
+                    className={'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ' + ((loading || tokenExpired || ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order?.status)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-primary-100 text-primary-700 hover:bg-primary-200')}
+                  >
+                    <svg
+                      className={'w-4 h-4 mr-1.5 ' + (loading ? 'animate-spin' : '')}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    {loading ? 'Memuat...' : tokenExpired ? 'Token Expired' : ['completed', 'delivered', 'picked_up'].includes(order?.status) ? 'Selesai' : 'Refresh'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Order Info Card */}
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
@@ -362,9 +953,7 @@ const OrderTracking = () => {
                   <h3 className="text-lg font-bold text-gray-900">{order.order_no}</h3>
                   <p className="text-sm text-gray-600">{formatDate(order.created_at)}</p>
                 </div>
-                <span className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  order.type === 'delivery' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                }`}>
+                <span className={'px-4 py-2 rounded-full text-sm font-medium ' + (order.type === 'delivery' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800')}>
                   {order.type === 'delivery' ? '🚗 Delivery' : '🏪 Pickup'}
                 </span>
               </div>
@@ -386,13 +975,7 @@ const OrderTracking = () => {
                 </div>
                 <div>
                   <p className="text-gray-600">Payment Status:</p>
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                    order.payment?.status === 'verified' 
-                      ? 'bg-green-100 text-green-800' 
-                      : order.payment?.status === 'rejected'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
+                  <span className={'inline-block px-2 py-1 rounded text-xs font-medium ' + (order.payment?.status === 'verified' ? 'bg-green-100 text-green-800' : order.payment?.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800')}>
                     {order.payment?.status || 'pending'}
                   </span>
                 </div>
@@ -407,151 +990,28 @@ const OrderTracking = () => {
               )}
             </div>
 
-
-            {/* Modern Responsive Timeline */}
+            {/* Timeline Card */}
             <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-4">
-                <h3 className="text-xl font-bold text-white flex items-center">
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Status Pesanan
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white flex items-center">
+                    <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Status Pesanan
+                  </h3>
+                  {!wsConnected && (
+                    <div className="flex items-center gap-2 text-white text-sm" style={{ opacity: 0.8 }}>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Menghubungkan...
+                    </div>
+                  )}
+                </div>
               </div>
-
-              {(() => {
-                const paymentMethod = order.payment?.method || order.payment_method;
-                const timeline = getTimeline(order.type, paymentMethod, order.status);
-                const currentStatus = mapStatusToTimeline(order.status, order.type);
-                const currentIndex = getCurrentStepIndex(currentStatus, timeline);
-                const isRejected = order.status === 'canceled' || order.status === 'cancelled' || order.status === 'rejected';
-
-                return (
-                  <div className="p-6">
-                    {/* Desktop & Tablet: Horizontal Timeline */}
-                    <div className="hidden md:block">
-                      <div className="relative">
-                        {/* Progress Bar */}
-                        <div className="absolute top-6 left-0 right-0 h-1 bg-gray-200 rounded-full">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-500 ease-out ${
-                              isRejected 
-                                ? 'bg-gradient-to-r from-red-500 to-red-600' 
-                                : 'bg-gradient-to-r from-primary-500 to-primary-600'
-                            }`}
-                            style={{ width: `${(currentIndex / (timeline.length - 1)) * 100}%` }}
-                          ></div>
-                        </div>
-                        
-                        {/* Timeline Steps */}
-                        <div className="relative flex justify-between">
-                          {timeline.map((step, index) => {
-                            const isCompleted = index <= currentIndex;
-                            const isCurrent = index === currentIndex;
-                            const isRejectedStep = isRejected && step.status === 'canceled';
-
-                            return (
-                              <div key={step.status} className="flex flex-col items-center" style={{ width: `${100 / timeline.length}%` }}>
-                                {/* Icon */}
-                                <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-4 transition-all duration-300 ${
-                                  isRejectedStep
-                                    ? 'bg-red-500 border-white shadow-lg scale-110'
-                                    : isCompleted 
-                                      ? isCurrent
-                                        ? 'bg-primary-600 border-white shadow-lg scale-110 animate-pulse'
-                                        : 'bg-primary-600 border-white shadow-md'
-                                      : 'bg-white border-gray-300'
-                                }`}>
-                                  <span className={`text-xl ${isCompleted || isRejectedStep ? 'filter brightness-0 invert' : 'opacity-50'}`}>
-                                    {step.icon}
-                                  </span>
-                                </div>
-
-                                {/* Label */}
-                                <div className="mt-3 text-center px-2">
-                                  <p className={`text-xs sm:text-sm font-semibold mb-1 leading-tight ${
-                                    isRejectedStep ? 'text-red-600' : isCurrent ? 'text-primary-600' : isCompleted ? 'text-gray-900' : 'text-gray-400'
-                                  }`}>
-                                    {step.label}
-                                  </p>
-                                  {isCurrent && !isRejected && (
-                                    <span className="inline-block px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full font-medium">
-                                      Saat Ini
-                                    </span>
-                                  )}
-                                  {isCompleted && !isCurrent && (
-                                    <span className="inline-block text-green-600 text-xs font-medium">
-                                      ✓ Selesai
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Current Step Description */}
-                      <div className={`mt-8 p-4 rounded-lg border ${
-                        isRejected 
-                          ? 'bg-red-50 border-red-200' 
-                          : 'bg-primary-50 border-primary-200'
-                      }`}>
-                        <p className="text-sm text-gray-700">
-                          <span className={`font-semibold ${isRejected ? 'text-red-700' : 'text-primary-700'}`}>
-                            Status saat ini:
-                          </span> {timeline[currentIndex]?.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Mobile: Simple Status Card */}
-                    <div className="md:hidden">
-                      {/* Compact Status Card */}
-                      <div className={`rounded-xl p-4 border ${
-                        isRejected 
-                          ? 'bg-red-50 border-red-200' 
-                          : 'bg-primary-50 border-primary-200'
-                      }`}>
-                        <div className="flex items-center gap-3">
-                          {/* Icon */}
-                          <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
-                            isRejected ? 'bg-red-500' : 'bg-primary-600'
-                          }`}>
-                            <span className="text-xl filter brightness-0 invert">
-                              {timeline[currentIndex]?.icon}
-                            </span>
-                          </div>
-                          
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-medium ${isRejected ? 'text-red-600' : 'text-primary-600'}`}>
-                              {isRejected ? 'DIBATALKAN' : `Step ${currentIndex + 1}/${timeline.length}`}
-                            </p>
-                            <p className="font-bold text-gray-900 truncate">
-                              {timeline[currentIndex]?.label}
-                            </p>
-                          </div>
-
-                          {/* Progress Circle */}
-                          {!isRejected && (
-                            <div className="flex-shrink-0 text-right">
-                              <span className="text-lg font-bold text-primary-600">
-                                {Math.round(((currentIndex + 1) / timeline.length) * 100)}%
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Description */}
-                        <p className="text-xs text-gray-600 mt-2 pl-15">
-                          {timeline[currentIndex]?.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+              <TimelineSection />
             </div>
 
             {/* Order Items */}
@@ -567,7 +1027,7 @@ const OrderTracking = () => {
                           {item.modifiers.map((mod, idx) => (
                             <span key={idx} className="block">
                               + {mod.modifier_name_snapshot}
-                              {mod.price_delta > 0 && ` (+${formatRupiah(mod.price_delta)})`}
+                              {mod.price_delta > 0 && ' (+' + formatRupiah(mod.price_delta) + ')'}
                             </span>
                           ))}
                         </div>
@@ -579,32 +1039,27 @@ const OrderTracking = () => {
                 ))}
               </div>
               
-              {/* Summary dengan Diskon */}
+              {/* Summary */}
               <div className="border-t pt-3 mt-3 space-y-2">
-                {/* Subtotal */}
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="text-gray-900">
-                    {formatRupiah(
-                      order.items?.reduce((sum, item) => sum + Number(item.subtotal || 0), 0) || 0
-                    )}
+                    {formatRupiah(order.items?.reduce((sum, item) => sum + Number(item.subtotal || 0), 0) || 0)}
                   </span>
                 </div>
                 
-                {/* Diskon (jika ada) */}
                 {order.discount_amount > 0 && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-green-600 flex items-center">
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                       </svg>
-                      Diskon {order.discount_code && `(${order.discount_code})`}
+                      Diskon {order.discount_code ? '(' + order.discount_code + ')' : ''}
                     </span>
                     <span className="text-green-600 font-medium">-{formatRupiah(order.discount_amount)}</span>
                   </div>
                 )}
                 
-                {/* Total */}
                 <div className="flex justify-between items-center pt-2 border-t">
                   <span className="font-bold text-gray-900">Total</span>
                   <span className="font-bold text-xl text-primary-600">{formatRupiah(order.grand_total)}</span>
@@ -622,7 +1077,7 @@ const OrderTracking = () => {
                 className="inline-flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
               >
                 <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                 </svg>
                 Hubungi Kami
               </a>

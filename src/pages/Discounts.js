@@ -11,22 +11,45 @@ const Discounts = () => {
     const [editingDiscount, setEditingDiscount] = useState(null);
     const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: '' });
 
+    // ✨ NEW: Load products and categories for selection
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
+    const [productSearch, setProductSearch] = useState('');
+    const [categorySearch, setCategorySearch] = useState('');
+
     const [formData, setFormData] = useState({
         code: '',
         name: '',
         description: '',
         discount_type: 'percentage',
+        discount_scope: 'order', 
         value: '',
         min_order_amount: '',
         max_discount_amount: '',
         usage_limit: '',
+        max_items: '',
+        max_quantity_per_item: '',
         start_date: '',
         end_date: '',
-        is_active: true
+        is_active: true,
+        applies_to_product_ids: [], 
+        applies_to_category_ids: []  
     });
+
+    // ✨ Filter products based on search
+    const filteredProducts = products.filter(product =>
+        product.name.toLowerCase().includes(productSearch.toLowerCase())
+    );
+
+    // ✨ Filter categories based on search
+    const filteredCategories = categories.filter(category =>
+        category.name.toLowerCase().includes(categorySearch.toLowerCase())
+    );
 
     useEffect(() => {
         fetchDiscounts();
+        fetchProductsAndCategories();
     }, []);
 
     const fetchDiscounts = async () => {
@@ -42,11 +65,68 @@ const Discounts = () => {
         }
     };
 
+    // ✨ NEW: Fetch products and categories
+    const fetchProductsAndCategories = async () => {
+        setLoadingProducts(true);
+        try {
+            const [productsRes, categoriesRes] = await Promise.all([
+                staffAPI.getProducts(),
+                staffAPI.getCategories()
+            ]);
+            
+            console.log('📦 Raw Products Response:', productsRes);
+            console.log('📁 Raw Categories Response:', categoriesRes);
+            
+            // Handle different response formats
+            let loadedProducts = [];
+            let loadedCategories = [];
+            
+            // ✅ FIX: Check if response.data is directly an array
+            if (Array.isArray(productsRes.data)) {
+                loadedProducts = productsRes.data;
+            } else if (productsRes.data?.products && Array.isArray(productsRes.data.products)) {
+                loadedProducts = productsRes.data.products;
+            } else if (Array.isArray(productsRes)) {
+                loadedProducts = productsRes;
+            }
+            
+            if (Array.isArray(categoriesRes.data)) {
+                loadedCategories = categoriesRes.data;
+            } else if (categoriesRes.data?.categories && Array.isArray(categoriesRes.data.categories)) {
+                loadedCategories = categoriesRes.data.categories;
+            } else if (Array.isArray(categoriesRes)) {
+                loadedCategories = categoriesRes;
+            }
+            
+            console.log('✅ Parsed Products:', loadedProducts);
+            console.log('✅ Parsed Categories:', loadedCategories);
+            console.log(`📊 Total: ${loadedProducts.length} products, ${loadedCategories.length} categories`);
+            
+            setProducts(loadedProducts);
+            setCategories(loadedCategories);
+            
+            if (loadedProducts.length === 0) {
+                console.warn('⚠️ No products found! Check API response format');
+            }
+            if (loadedCategories.length === 0) {
+                console.warn('⚠️ No categories found! Check API response format');
+            }
+        } catch (error) {
+            console.error('❌ Error fetching products/categories:', error);
+            notify.error('Gagal memuat data produk/kategori');
+        } finally {
+            setLoadingProducts(false);
+        }
+    };
+
     const resetForm = () => {
         setFormData({
             code: '', name: '', description: '', discount_type: 'percentage',
+            discount_scope: 'order',
             value: '', min_order_amount: '', max_discount_amount: '',
-            usage_limit: '', start_date: '', end_date: '', is_active: true
+            usage_limit: '', max_items: '', max_quantity_per_item: '', start_date: '', end_date: '', is_active: true,
+            applies_to_product_ids: [],
+            applies_to_category_ids: []
         });
     };
 
@@ -63,13 +143,18 @@ const Discounts = () => {
             name: discount.name,
             description: discount.description || '',
             discount_type: discount.discount_type,
+            discount_scope: discount.discount_scope || 'order',
             value: discount.value,
             min_order_amount: discount.min_order_amount || '',
             max_discount_amount: discount.max_discount_amount || '',
             usage_limit: discount.usage_limit || '',
+            max_items: discount.max_items || '',
+            max_quantity_per_item: discount.max_quantity_per_item || '',
             start_date: discount.start_date ? discount.start_date.slice(0, 16) : '',
             end_date: discount.end_date ? discount.end_date.slice(0, 16) : '',
-            is_active: discount.is_active
+            is_active: discount.is_active,
+            applies_to_product_ids: discount.applies_to_product_ids || [],
+            applies_to_category_ids: discount.applies_to_category_ids || []
         });
         setShowModal(true);
     };
@@ -81,16 +166,52 @@ const Discounts = () => {
             return;
         }
 
+        // ✨ NEW: Validate scope selection
+        if (formData.discount_scope === 'product' && formData.applies_to_product_ids.length === 0) {
+            notify.error('Pilih minimal 1 produk untuk scope "Produk Tertentu"');
+            return;
+        }
+
+        if (formData.discount_scope === 'category' && formData.applies_to_category_ids.length === 0) {
+            notify.error('Pilih minimal 1 kategori untuk scope "Kategori Tertentu"');
+            return;
+        }
+
+        const formatDatetimeForBackend = (dateString) => {
+            if (!dateString) return null;
+            try {
+                const date = new Date(dateString);
+                return date.toISOString();
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const parseUsageLimit = (value) => {
+            if (!value || value === '' || value === '0') {
+                return null;
+            }
+            const parsed = parseInt(value);
+            return parsed > 0 ? parsed : null;
+        };
+
         const payload = {
             ...formData,
             value: parseFloat(formData.value),
             min_order_amount: formData.min_order_amount ? parseFloat(formData.min_order_amount) : 0,
             max_discount_amount: formData.max_discount_amount ? parseFloat(formData.max_discount_amount) : null,
-            usage_limit: formData.usage_limit ? parseInt(formData.usage_limit) : null,
-            start_date: formData.start_date || null,
-            end_date: formData.end_date || null,
-            code: formData.code || null
+            usage_limit: parseUsageLimit(formData.usage_limit),
+            max_items: formData.max_items ? parseInt(formData.max_items) : null,
+            max_quantity_per_item: formData.max_quantity_per_item ? parseInt(formData.max_quantity_per_item) : null,
+            start_date: formatDatetimeForBackend(formData.start_date),
+            end_date: formatDatetimeForBackend(formData.end_date),
+            code: formData.code || null,
+            // ✨ Clean up based on scope
+            applies_to_product_ids: formData.discount_scope === 'product' ? formData.applies_to_product_ids : null,
+            applies_to_category_ids: formData.discount_scope === 'category' ? formData.applies_to_category_ids : null
         };
+
+        console.log('📤 Sending payload:', payload);
 
         try {
             if (editingDiscount) {
@@ -101,9 +222,11 @@ const Discounts = () => {
                 notify.success('Diskon berhasil dibuat');
             }
             setShowModal(false);
+            resetForm();
             fetchDiscounts();
         } catch (error) {
-            notify.error(error.response?.data?.error || 'Gagal menyimpan diskon');
+            console.error('❌ Error saving discount:', error.response?.data);
+            notify.error(error.response?.data?.error || error.response?.data?.message || 'Gagal menyimpan diskon');
         }
     };
 
@@ -111,175 +234,703 @@ const Discounts = () => {
         try {
             await staffAPI.deleteDiscount(deleteDialog.id);
             notify.success('Diskon berhasil dihapus');
-            setDeleteDialog({ isOpen: false, id: null, name: '' });
+            closeDeleteDialog();
             fetchDiscounts();
         } catch (error) {
             notify.error('Gagal menghapus diskon');
         }
     };
 
+    const closeDeleteDialog = () => {
+        setDeleteDialog({ isOpen: false, id: null, name: '' });
+    };
+
     const handleToggleActive = async (discount) => {
         try {
             await staffAPI.updateDiscount(discount.id, { is_active: !discount.is_active });
-            notify.success(`Diskon ${discount.is_active ? 'dinonaktifkan' : 'diaktifkan'}`);
+            notify.success(`Diskon ${!discount.is_active ? 'diaktifkan' : 'dinonaktifkan'}`);
             fetchDiscounts();
         } catch (error) {
-            notify.error('Gagal mengubah status diskon');
+            notify.error('Gagal mengubah status');
         }
     };
 
-    const formatCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
-
-    // eslint-disable-next-line no-unused-vars
-    const formatDate = (dateStr) => {
-        if (!dateStr) return '-';
-        return new Date(dateStr).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    // ✨ NEW: Handle multi-select for products
+    const handleProductSelect = (productId) => {
+        setFormData(prev => ({
+            ...prev,
+            applies_to_product_ids: prev.applies_to_product_ids.includes(productId)
+                ? prev.applies_to_product_ids.filter(id => id !== productId)
+                : [...prev.applies_to_product_ids, productId]
+        }));
     };
 
-    const getDiscountLabel = (discount) => discount.discount_type === 'percentage' ? `${discount.value}%` : formatCurrency(discount.value);
+    // ✨ NEW: Handle multi-select for categories
+    const handleCategorySelect = (categoryId) => {
+        setFormData(prev => ({
+            ...prev,
+            applies_to_category_ids: prev.applies_to_category_ids.includes(categoryId)
+                ? prev.applies_to_category_ids.filter(id => id !== categoryId)
+                : [...prev.applies_to_category_ids, categoryId]
+        }));
+    };
 
-    const getStatusBadge = (discount) => {
-        const now = new Date();
-        if (!discount.is_active) return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">Nonaktif</span>;
-        if (discount.start_date && new Date(discount.start_date) > now) return <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Belum Mulai</span>;
-        if (discount.end_date && new Date(discount.end_date) < now) return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Berakhir</span>;
-        if (discount.usage_limit && discount.used_count >= discount.usage_limit) return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Kuota Habis</span>;
-        return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Aktif</span>;
+    // ✨ NEW: Get scope label
+    const getScopeLabel = (discount) => {
+        if (discount.discount_scope === 'product') {
+            const count = discount.applies_to_product_ids?.length || 0;
+            return `${count} Produk`;
+        } else if (discount.discount_scope === 'category') {
+            const count = discount.applies_to_category_ids?.length || 0;
+            return `${count} Kategori`;
+        }
+        return 'Semua Produk';
     };
 
     return (
         <AdminLayout>
             <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-800">Diskon & Promo</h1>
-                        <p className="text-gray-600">Kelola kode promo dan diskon</p>
+                        <h1 className="text-2xl font-bold text-gray-900">Kelola Diskon & Promo</h1>
+                        <p className="text-sm text-gray-600 mt-1">Buat dan kelola kode promo untuk pelanggan</p>
                     </div>
-                    <button onClick={handleOpenCreate} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                        onClick={handleOpenCreate}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        Tambah Diskon
+                        Buat Diskon Baru
                     </button>
                 </div>
 
-                <div className="bg-white rounded-lg shadow overflow-hidden">
-                    {loading ? (
-                        <div className="p-8 text-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kode</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Diskon</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Min. Order</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Penggunaan</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Aksi</th>
+                {loading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    </div>
+                ) : discounts.length === 0 ? (
+                    <div className="text-center py-16 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 className="mt-4 text-lg font-medium text-gray-900">Belum ada diskon</h3>
+                        <p className="mt-2 text-sm text-gray-500">Mulai dengan membuat diskon pertama Anda</p>
+                        <button
+                            onClick={handleOpenCreate}
+                            className="mt-6 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                        >
+                            Buat Diskon Baru
+                        </button>
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode & Nama</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe & Nilai</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scope</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Periode</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Penggunaan</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {discounts.map((discount) => (
+                                    <tr key={discount.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4">
+                                            <div>
+                                                {discount.code && (
+                                                    <div className="text-xs font-mono font-bold text-blue-600 mb-1">
+                                                        {discount.code}
+                                                    </div>
+                                                )}
+                                                <div className="text-sm font-medium text-gray-900">{discount.name}</div>
+                                                {discount.description && (
+                                                    <div className="text-xs text-gray-500 mt-1">{discount.description}</div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm">
+                                                <span className="font-semibold text-gray-900">
+                                                    {discount.discount_type === 'percentage' 
+                                                        ? `${discount.value}%`
+                                                        : `Rp ${discount.value.toLocaleString('id-ID')}`
+                                                    }
+                                                </span>
+                                                {discount.max_discount_amount && (
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        Maks. Rp {discount.max_discount_amount.toLocaleString('id-ID')}
+                                                    </div>
+                                                )}
+                                                {discount.min_order_amount > 0 && (
+                                                    <div className="text-xs text-gray-500">
+                                                        Min. Rp {discount.min_order_amount.toLocaleString('id-ID')}
+                                                    </div>
+                                                )}
+                                                {discount.max_items && (
+                                                    <div className="text-xs text-amber-600 font-medium">
+                                                        Maks. {discount.max_items} item
+                                                    </div>
+                                                )}
+                                                {discount.max_quantity_per_item && (
+                                                    <div className="text-xs text-red-600 font-medium">
+                                                        Maks. {discount.max_quantity_per_item} qty/item
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                {getScopeLabel(discount)}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500">
+                                            {discount.start_date ? new Date(discount.start_date).toLocaleDateString('id-ID') : '-'}
+                                            {' s/d '}
+                                            {discount.end_date ? new Date(discount.end_date).toLocaleDateString('id-ID') : '-'}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-sm">
+                                                <span className="font-medium text-gray-900">{discount.used_count || 0}</span>
+                                                {discount.usage_limit && (
+                                                    <span className="text-gray-500"> / {discount.usage_limit}</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <button
+                                                onClick={() => handleToggleActive(discount)}
+                                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                    discount.is_active
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-gray-100 text-gray-800'
+                                                }`}
+                                            >
+                                                {discount.is_active ? 'Aktif' : 'Nonaktif'}
+                                            </button>
+                                        </td>
+                                        <td className="px-6 py-4 text-right text-sm font-medium">
+                                            <button
+                                                onClick={() => handleOpenEdit(discount)}
+                                                className="text-blue-600 hover:text-blue-900 mr-3"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => setDeleteDialog({ isOpen: true, id: discount.id, name: discount.name })}
+                                                className="text-red-600 hover:text-red-900"
+                                            >
+                                                Hapus
+                                            </button>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                    {discounts.map((discount) => (
-                                        <tr key={discount.id}>
-                                            <td className="px-6 py-4">
-                                                <div className="font-medium text-gray-900">{discount.name}</div>
-                                                {discount.description && <div className="text-sm text-gray-500">{discount.description}</div>}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {discount.code ? <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded font-mono text-sm">{discount.code}</span> : <span className="text-gray-400">-</span>}
-                                            </td>
-                                            <td className="px-6 py-4 text-center font-semibold text-green-600">{getDiscountLabel(discount)}</td>
-                                            <td className="px-6 py-4 text-center text-sm text-gray-500">{discount.min_order_amount > 0 ? formatCurrency(discount.min_order_amount) : '-'}</td>
-                                            <td className="px-6 py-4 text-center text-sm">{discount.usage_limit ? `${discount.used_count} / ${discount.usage_limit}` : `${discount.used_count} (∞)`}</td>
-                                            <td className="px-6 py-4 text-center">{getStatusBadge(discount)}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <div className="flex justify-center space-x-2">
-                                                    <button onClick={() => handleToggleActive(discount)} className="p-1 text-yellow-600 hover:bg-yellow-50 rounded" title={discount.is_active ? 'Nonaktifkan' : 'Aktifkan'}>
-                                                        {discount.is_active ? '⏸' : '▶'}
-                                                    </button>
-                                                    <button onClick={() => handleOpenEdit(discount)} className="p-1 text-blue-600 hover:bg-blue-50 rounded">✏️</button>
-                                                    <button onClick={() => setDeleteDialog({ isOpen: true, id: discount.id, name: discount.name })} className="p-1 text-red-600 hover:bg-red-50 rounded">🗑️</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {discounts.length === 0 && <div className="p-8 text-center text-gray-500">Belum ada diskon.</div>}
-                        </div>
-                    )}
-                </div>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
 
+                {/* Modal Form */}
                 {showModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                            <h3 className="text-lg font-bold mb-4">{editingDiscount ? 'Edit Diskon' : 'Tambah Diskon Baru'}</h3>
-                            <form onSubmit={handleSubmit}>
-                                <div className="space-y-4">
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    {editingDiscount ? 'Edit Diskon' : 'Buat Diskon Baru'}
+                                </h2>
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleSubmit} className="p-6">
+                                <div className="space-y-5">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Diskon *</label>
-                                        <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" required />
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Nama Diskon <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="Diskon Hari Kemerdekaan"
+                                            required
+                                        />
                                     </div>
+
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Kode Promo</label>
-                                        <input type="text" value={formData.code} onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono" placeholder="HEMAT10" />
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Deskripsi</label>
+                                        <textarea
+                                            value={formData.description}
+                                            onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            rows="2"
+                                            placeholder="Deskripsi singkat tentang promo ini..."
+                                        />
                                     </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Kode Promo</label>
+                                        <input
+                                            type="text"
+                                            value={formData.code}
+                                            onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="DISKON100"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1.5">Kosongkan jika tidak memerlukan kode</p>
+                                    </div>
+
+                                    {/* ✨ NEW: Discount Scope Selector */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Berlaku Untuk <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            value={formData.discount_scope}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                discount_scope: e.target.value,
+                                                applies_to_product_ids: [],
+                                                applies_to_category_ids: []
+                                            })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="order">Semua Produk</option>
+                                            <option value="product">Produk Tertentu</option>
+                                            <option value="category">Kategori Tertentu</option>
+                                        </select>
+                                    </div>
+
+                                    {/* ✨ NEW: Product Selector */}
+                                    {formData.discount_scope === 'product' && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-sm font-medium text-gray-700">
+                                                    Pilih Produk <span className="text-red-500">*</span>
+                                                </label>
+                                                {products.length > 0 && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({
+                                                                ...formData,
+                                                                applies_to_product_ids: products.map(p => p.id)
+                                                            })}
+                                                            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                        >
+                                                            Pilih Semua
+                                                        </button>
+                                                        <span className="text-gray-300">|</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({
+                                                                ...formData,
+                                                                applies_to_product_ids: []
+                                                            })}
+                                                            className="text-xs text-gray-600 hover:text-gray-700 font-medium"
+                                                        >
+                                                            Hapus Semua
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Debug Info */}
+                                            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                                <strong>Debug:</strong> {products.length} produk dimuat | 
+                                                Filtered: {filteredProducts.length} | 
+                                                Loading: {loadingProducts ? 'Ya' : 'Tidak'}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        console.log('🔍 Debug State:');
+                                                        console.log('Products:', products);
+                                                        console.log('Filtered Products:', filteredProducts);
+                                                        console.log('Loading:', loadingProducts);
+                                                    }}
+                                                    className="ml-2 text-blue-600 hover:underline"
+                                                >
+                                                    Log to Console
+                                                </button>
+                                            </div>
+                                            
+                                            {/* Search Box */}
+                                            {products.length > 5 && (
+                                                <div className="mb-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="🔍 Cari produk..."
+                                                        value={productSearch}
+                                                        onChange={(e) => setProductSearch(e.target.value)}
+                                                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                            )}
+                                            
+                                            <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
+                                                {loadingProducts ? (
+                                                    <div className="text-center py-4">
+                                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                                                        <p className="text-xs text-gray-500 mt-2">Memuat produk...</p>
+                                                    </div>
+                                                ) : products.length === 0 ? (
+                                                    <div className="text-center py-4">
+                                                        <p className="text-sm text-gray-500">Tidak ada produk tersedia</p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={fetchProductsAndCategories}
+                                                            className="text-xs text-blue-600 hover:text-blue-700 mt-2 underline"
+                                                        >
+                                                            🔄 Muat ulang
+                                                        </button>
+                                                    </div>
+                                                ) : filteredProducts.length === 0 ? (
+                                                    <div className="text-center py-4">
+                                                        <p className="text-sm text-gray-500">Tidak ada produk yang cocok dengan "{productSearch}"</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {filteredProducts.map(product => (
+                                                            <label key={product.id} className="flex items-center cursor-pointer hover:bg-white p-2 rounded transition-colors">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={formData.applies_to_product_ids.includes(product.id)}
+                                                                    onChange={() => handleProductSelect(product.id)}
+                                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                                />
+                                                                <div className="ml-3 flex-1">
+                                                                    <span className="text-sm font-medium text-gray-900">{product.name}</span>
+                                                                    {product.price && (
+                                                                        <span className="ml-2 text-xs text-gray-500">
+                                                                            Rp {parseFloat(product.price).toLocaleString('id-ID')}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1.5">
+                                                {formData.applies_to_product_ids.length > 0 ? (
+                                                    <span className="text-blue-600 font-medium">
+                                                        ✓ Dipilih: {formData.applies_to_product_ids.length} produk
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-amber-600">
+                                                        ⚠ Belum ada produk yang dipilih
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* ✨ NEW: Category Selector */}
+                                    {formData.discount_scope === 'category' && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-sm font-medium text-gray-700">
+                                                    Pilih Kategori <span className="text-red-500">*</span>
+                                                </label>
+                                                {categories.length > 0 && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({
+                                                                ...formData,
+                                                                applies_to_category_ids: categories.map(c => c.id)
+                                                            })}
+                                                            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                        >
+                                                            Pilih Semua
+                                                        </button>
+                                                        <span className="text-gray-300">|</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setFormData({
+                                                                ...formData,
+                                                                applies_to_category_ids: []
+                                                            })}
+                                                            className="text-xs text-gray-600 hover:text-gray-700 font-medium"
+                                                        >
+                                                            Hapus Semua
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Debug Info */}
+                                            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                                <strong>Debug:</strong> {categories.length} kategori dimuat | 
+                                                Filtered: {filteredCategories.length} | 
+                                                Loading: {loadingProducts ? 'Ya' : 'Tidak'}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        console.log('🔍 Debug State:');
+                                                        console.log('Categories:', categories);
+                                                        console.log('Filtered Categories:', filteredCategories);
+                                                        console.log('Loading:', loadingProducts);
+                                                    }}
+                                                    className="ml-2 text-blue-600 hover:underline"
+                                                >
+                                                    Log to Console
+                                                </button>
+                                            </div>
+                                            
+                                            {/* Search Box */}
+                                            {categories.length > 5 && (
+                                                <div className="mb-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="🔍 Cari kategori..."
+                                                        value={categorySearch}
+                                                        onChange={(e) => setCategorySearch(e.target.value)}
+                                                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                            )}
+                                            
+                                            <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-gray-50">
+                                                {loadingProducts ? (
+                                                    <div className="text-center py-4">
+                                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                                                        <p className="text-xs text-gray-500 mt-2">Memuat kategori...</p>
+                                                    </div>
+                                                ) : categories.length === 0 ? (
+                                                    <div className="text-center py-4">
+                                                        <p className="text-sm text-gray-500">Tidak ada kategori tersedia</p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={fetchProductsAndCategories}
+                                                            className="text-xs text-blue-600 hover:text-blue-700 mt-2 underline"
+                                                        >
+                                                            🔄 Muat ulang
+                                                        </button>
+                                                    </div>
+                                                ) : filteredCategories.length === 0 ? (
+                                                    <div className="text-center py-4">
+                                                        <p className="text-sm text-gray-500">Tidak ada kategori yang cocok dengan "{categorySearch}"</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        {filteredCategories.map(category => (
+                                                            <label key={category.id} className="flex items-center cursor-pointer hover:bg-white p-2 rounded transition-colors">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={formData.applies_to_category_ids.includes(category.id)}
+                                                                    onChange={() => handleCategorySelect(category.id)}
+                                                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                                />
+                                                                <div className="ml-3 flex-1">
+                                                                    <span className="text-sm font-medium text-gray-900">{category.name}</span>
+                                                                    {category.description && (
+                                                                        <span className="ml-2 text-xs text-gray-500">
+                                                                            {category.description}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1.5">
+                                                {formData.applies_to_category_ids.length > 0 ? (
+                                                    <span className="text-blue-600 font-medium">
+                                                        ✓ Dipilih: {formData.applies_to_category_ids.length} kategori
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-amber-600">
+                                                        ⚠ Belum ada kategori yang dipilih
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Tipe Diskon</label>
-                                            <select value={formData.discount_type} onChange={(e) => setFormData({...formData, discount_type: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Tipe</label>
+                                            <select
+                                                value={formData.discount_type}
+                                                onChange={(e) => setFormData({...formData, discount_type: e.target.value})}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            >
                                                 <option value="percentage">Persentase (%)</option>
                                                 <option value="fixed">Nominal (Rp)</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Nilai *</label>
-                                            <input type="number" min="0" value={formData.value} onChange={(e) => setFormData({...formData, value: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" required />
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Nilai <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="any"
+                                                value={formData.value}
+                                                onChange={(e) => setFormData({...formData, value: e.target.value})}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                required
+                                                placeholder={formData.discount_type === 'percentage' ? '100' : '50000'}
+                                            />
                                         </div>
                                     </div>
+
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Min. Order</label>
-                                            <input type="number" min="0" value={formData.min_order_amount} onChange={(e) => setFormData({...formData, min_order_amount: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Min. Order (Rp)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="any"
+                                                value={formData.min_order_amount}
+                                                onChange={(e) => setFormData({...formData, min_order_amount: e.target.value})}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                placeholder="0"
+                                            />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Maks. Diskon</label>
-                                            <input type="number" min="0" value={formData.max_discount_amount} onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Maks. Diskon (Rp)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="any"
+                                                value={formData.max_discount_amount}
+                                                onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                placeholder="Unlimited"
+                                            />
                                         </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Batas Penggunaan</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={formData.usage_limit}
+                                            onChange={(e) => setFormData({...formData, usage_limit: e.target.value})}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="Kosongkan untuk unlimited"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1.5">
+                                            Kosongkan atau isi 0 untuk unlimited. Minimal 1 jika diisi.
+                                        </p>
+                                    </div>
+
+                                    {/* ✨ NEW: Max Items Field */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Maks. Jumlah Item dalam Cart
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={formData.max_items}
+                                            onChange={(e) => setFormData({...formData, max_items: e.target.value})}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="Kosongkan untuk unlimited"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1.5">
+                                            Promo hanya berlaku jika jumlah <strong>jenis item</strong> di cart tidak melebihi nilai ini. 
+                                            Contoh: isi <strong>1</strong> jika promo hanya untuk pembelian 1 item saja. Kosongkan untuk unlimited.
+                                        </p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Batas Penggunaan</label>
-                                        <input type="number" min="0" value={formData.usage_limit} onChange={(e) => setFormData({...formData, usage_limit: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" placeholder="Unlimited" />
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Maks. Quantity Per Item
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={formData.max_quantity_per_item}
+                                            onChange={(e) => setFormData({...formData, max_quantity_per_item: e.target.value})}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="Kosongkan untuk unlimited"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1.5">
+                                            Promo hanya berlaku jika quantity setiap item tidak melebihi nilai ini. 
+                                            Contoh: isi <strong>1</strong> jika promo hanya untuk 1 qty (tidak boleh 2x Nasi Goreng).
+                                        </p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Mulai</label>
-                                            <input type="datetime-local" value={formData.start_date} onChange={(e) => setFormData({...formData, start_date: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Mulai</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={formData.start_date}
+                                                onChange={(e) => setFormData({...formData, start_date: e.target.value})}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                            />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Berakhir</label>
-                                            <input type="datetime-local" value={formData.end_date} onChange={(e) => setFormData({...formData, end_date: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Berakhir</label>
+                                            <input
+                                                type="datetime-local"
+                                                value={formData.end_date}
+                                                onChange={(e) => setFormData({...formData, end_date: e.target.value})}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                            />
                                         </div>
                                     </div>
-                                    <label className="flex items-center">
-                                        <input type="checkbox" checked={formData.is_active} onChange={(e) => setFormData({...formData, is_active: e.target.checked})} className="mr-2 h-4 w-4" />
-                                        <span>Aktif</span>
-                                    </label>
+
+                                    <div className="pt-2">
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.is_active}
+                                                onChange={(e) => setFormData({...formData, is_active: e.target.checked})}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                            <span className="ml-2 text-sm font-medium text-gray-700">Aktifkan diskon</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div className="flex justify-end space-x-3 mt-6">
-                                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-100 rounded-lg">Batal</button>
-                                    <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg">{editingDiscount ? 'Simpan' : 'Buat'}</button>
+
+                                <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                                    >
+                                        {editingDiscount ? 'Simpan Perubahan' : 'Buat Diskon'}
+                                    </button>
                                 </div>
                             </form>
                         </div>
                     </div>
                 )}
 
-                <ConfirmDialog isOpen={deleteDialog.isOpen} title="Hapus Diskon?" message={`Hapus "${deleteDialog.name}"?`} confirmText="Hapus" confirmStyle="danger" onConfirm={handleDelete} onCancel={() => setDeleteDialog({ isOpen: false, id: null, name: '' })} />
+                <ConfirmDialog
+                    isOpen={deleteDialog.isOpen}
+                    title="Hapus Diskon?"
+                    message={`Yakin ingin menghapus diskon "${deleteDialog.name}"? Tindakan ini tidak dapat dibatalkan.`}
+                    confirmText="Hapus"
+                    confirmStyle="danger"
+                    onConfirm={handleDelete}
+                    onCancel={closeDeleteDialog}
+                    onClose={closeDeleteDialog}
+                />
             </div>
         </AdminLayout>
     );

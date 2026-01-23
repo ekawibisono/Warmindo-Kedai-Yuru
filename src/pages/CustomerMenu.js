@@ -19,7 +19,6 @@ const CustomerMenu = () => {
     }
   });
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedModifiers, setSelectedModifiers] = useState({});
   const [quantity, setQuantity] = useState(1);
@@ -27,10 +26,22 @@ const CustomerMenu = () => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [cart, setCart] = useState(() => {
+    try {
+      const savedCart = localStorage.getItem('cart');
+      return savedCart ? JSON.parse(savedCart) : [];
+    } catch (error) {
+      return [];
+    }
+  });
 
   useEffect(() => {
     fetchMenu();
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
 
   const fetchMenu = async () => {
     try {
@@ -53,36 +64,27 @@ const CustomerMenu = () => {
   const isStoreClosed = !menu.store_settings?.order_enabled;
   const isDeliveryDisabled = !menu.store_settings?.delivery_enabled;
 
-  // ENHANCED: Sort modifier groups - Level Pedas first, AddOns second, others last
-  const getProductModifierGroups = (productId) => {
-    const groupIds = menu.product_modifier_groups
-      .filter(pmg => pmg.product_id === productId)
-      .map(pmg => pmg.group_id);
+  const isProductAvailable = (product) => {
+    // Product must be active
+    if (!product.is_active) return false;
 
-    const groups = menu.modifier_groups.filter(g => groupIds.includes(g.id));
-    
-    // Sort: Level Pedas (or similar) first, then AddOns, then others
-    return groups.sort((a, b) => {
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
-      
-      // Priority 1: Level Pedas / Kepedasan
-      const aIsPedas = aName.includes('pedas') || aName.includes('kepedasan') || aName.includes('level');
-      const bIsPedas = bName.includes('pedas') || bName.includes('kepedasan') || bName.includes('level');
-      
-      if (aIsPedas && !bIsPedas) return -1;
-      if (!aIsPedas && bIsPedas) return 1;
-      
-      // Priority 2: AddOns / Tambahan
-      const aIsAddon = aName.includes('addon') || aName.includes('tambahan') || aName.includes('topping');
-      const bIsAddon = bName.includes('addon') || bName.includes('tambahan') || bName.includes('topping');
-      
-      if (aIsAddon && !bIsAddon) return -1;
-      if (!aIsAddon && bIsAddon) return 1;
-      
-      // Default: alphabetical
-      return a.name.localeCompare(b.name);
-    });
+    // If product has category, check if category is active
+    if (product.category_id) {
+      const category = menu.categories.find(c => c.id === product.category_id);
+      if (category && !category.is_active) return false;
+    }
+
+    return true;
+  };
+
+  const getProductModifierGroups = (productId) => {
+    const mappings = (menu.product_modifier_groups || [])
+      .filter((pmg) => pmg.product_id === productId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+    return mappings
+      .map((pmg) => menu.modifier_groups.find((g) => g.id === pmg.group_id))
+      .filter(Boolean);
   };
 
   const getGroupModifiers = (groupId) => {
@@ -94,6 +96,12 @@ const CustomerMenu = () => {
       alert('Maaf, toko sedang tutup. Silakan coba lagi nanti.');
       return;
     }
+
+    if (!isProductAvailable(product)) {
+      alert('Maaf, produk ini sedang tidak tersedia.');
+      return;
+    }
+
     setSelectedProduct(product);
     setSelectedModifiers({});
     setQuantity(1);
@@ -159,7 +167,7 @@ const CustomerMenu = () => {
 
   const addToCart = () => {
     if (!canAddToCart()) {
-      alert('Silakan lengkapi pilihan anda.');
+      alert('Mohon pilih modifier yang wajib dipilih');
       return;
     }
 
@@ -199,18 +207,25 @@ const CustomerMenu = () => {
   };
 
   const updateCartItemQty = (itemId, newQty) => {
-    if (newQty < 1) return;
-    setCart(cart.map(item => {
-      if (item.id === itemId) {
-        const modifiersTotal = item.modifiers.reduce((sum, m) => sum + m.price_delta, 0);
+    const qty = Number(newQty);
+    if (!Number.isFinite(qty) || qty < 1) return;
+    setCart(prevCart =>
+      prevCart.map(item => {
+        if (item.id !== itemId) return item;
+        const mods = Array.isArray(item.modifiers) ? item.modifiers : [];
+        const modifiersTotal = mods.reduce(
+          (sum, m) => sum + Number(m?.price_delta || 0),
+          0
+        );
+        const price = Number(item.price || 0);
         return {
           ...item,
-          quantity: newQty,
-          subtotal: (item.price + modifiersTotal) * newQty
+          quantity: qty,
+          modifiers: mods,
+          subtotal: (price + modifiersTotal) * qty,
         };
-      }
-      return item;
-    }));
+      })
+    );
   };
 
   const handleOpenCheckout = () => {
@@ -222,17 +237,10 @@ const CustomerMenu = () => {
     setShowCheckout(true);
   };
 
-  const handleCloseCheckout = () => {
-    setShowCheckout(false);
-    setCart([]);
-  };
-
   const handleCheckoutSuccess = (orderData) => {
-    // Clear cart after successful order
     setCart([]);
+    localStorage.removeItem('cart');
     setShowCheckout(false);
-    // orderData contains: { order: { order_no, grand_total, status }, tracking_token }
-    // Navigation to tracking page is handled by Checkout component
   };
 
   const formatRupiah = (number) => {
@@ -248,7 +256,7 @@ const CustomerMenu = () => {
 
   // Filter products
   const filteredProducts = menu.products
-    .filter(p => p.is_active)
+    // .filter(p => p.is_active)
     .filter(p => {
       // Special filter for Hot Deals
       if (selectedCategory === 'hot-deals') {
@@ -261,8 +269,12 @@ const CustomerMenu = () => {
 
   // Get active categories
   const activeCategories = menu.categories.filter(c =>
-    menu.products.some(p => p.category_id === c.id && p.is_active)
+    menu.products.some(p => p.category_id === c.id)
   );
+
+  const handleBackToMenu = () => {
+    setShowCheckout(false);
+  };
 
   if (loading) {
     return (
@@ -383,9 +395,8 @@ const CustomerMenu = () => {
                     }`}
                 >
                   🔥 Hot Deals
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                    selectedCategory === 'hot-deals' ? 'bg-white text-red-600' : 'bg-red-600 text-white'
-                  }`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${selectedCategory === 'hot-deals' ? 'bg-white text-red-600' : 'bg-red-600 text-white'
+                    }`}>
                     {hotDealsProducts.length}
                   </span>
                 </button>
@@ -453,115 +464,128 @@ const CustomerMenu = () => {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-5">
-            {filteredProducts.map((product) => (
-              <div
-                key={product.id}
-                onClick={() => !isStoreClosed && handleSelectProduct(product)}
-                className={`group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border-2 border-gray-200 hover:border-primary-400 flex flex-col sm:flex-row ${
-                  isStoreClosed ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
-                }`}
-              >
-                {/* Product Image */}
-                <div className="relative overflow-hidden bg-gray-50 w-full sm:w-40 lg:w-44 h-32 sm:h-32 lg:h-36 flex-shrink-0">
-                  {product.image_url ? (
-                    <>
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                      <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+            {filteredProducts.map((product) => {
+              const productAvailable = isProductAvailable(product);
+              const isDisabled = isStoreClosed || !productAvailable;
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => !isDisabled && handleSelectProduct(product)}
+                  className={`group bg-white rounded-2xl overflow-hidden shadow-md transition-all duration-300 border-2 flex flex-col ${isDisabled
+                      ? 'cursor-not-allowed opacity-60 border-gray-300'
+                      : 'cursor-pointer border-gray-200 hover:border-primary-400 hover:shadow-2xl'
+                    }`}
+                >
+                  {/* Product Image (konsisten) */}
+                  <div className="relative overflow-hidden bg-gray-100 w-[800px] h-[230px] max-w-full flex-shrink-0">
+                    {product.image_url ? (
+                      <>
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className={`w-full h-full object-cover object-center transition-transform duration-500 ${productAvailable
+                              ? 'transform group-hover:scale-110'
+                              : 'grayscale'
+                            }`}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </>
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                        <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
 
-                {/* Product Info */}
-                <div className="flex-1 p-2 sm:p-4 flex flex-col justify-between">
-                  <div className="flex-1">
-                    {/* Hot Deal Badge */}
+                    {/* Badge hot deal di atas image biar layout teks tidak berubah */}
                     {product.is_hot_deal && (
-                      <div className="flex items-center gap-1 mb-1">
-                        <span className="inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      <div className="absolute top-2 left-2">
+                        <span className="inline-flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow">
                           🔥 {product.discount_percent}% OFF
                         </span>
                       </div>
                     )}
-                    
-                    {/* Product Name */}
-                    <h3 className="font-bold text-xs sm:text-base lg:text-lg text-gray-900 mb-1 sm:mb-2 line-clamp-2 leading-snug">
+                    {!productAvailable && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                        <span className="bg-gray-800 text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg">
+                          ⚠️ Tidak Tersedia
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Info (kunci tinggi agar stabil) */}
+                  <div className="p-3 sm:p-4 flex flex-col flex-1">
+                    {/* Nama produk: kunci tinggi 2 baris */}
+                    <h3 className="font-bold text-xs sm:text-base text-gray-900 line-clamp-2 leading-snug min-h-[34px] sm:min-h-[44px]">
                       {product.name}
                     </h3>
-                    
-                    {/* Price & Sold Count */}
-                    <div className="flex items-center justify-between mb-1 sm:mb-2">
-                      <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-2">
-                        {/* Discounted Price */}
-                        <p className={`text-sm sm:text-lg lg:text-xl font-bold ${product.is_hot_deal ? 'text-red-600' : 'text-primary-600'}`}>
+
+                    {/* Harga & Terjual: kunci tinggi biar rapi */}
+                    <div className="mt-2 flex items-center justify-between min-h-[40px]">
+                      <div className="flex flex-col">
+                        <p
+                          className={`text-sm sm:text-lg font-bold ${product.is_hot_deal ? 'text-red-600' : 'text-primary-600'
+                            }`}
+                        >
                           {formatRupiah(product.price)}
                         </p>
-                        {/* Original Price (strikethrough) */}
+
                         {product.is_hot_deal && product.original_price > 0 && (
-                          <p className="text-xs sm:text-sm text-gray-400 line-through">
+                          <p className="text-xs text-gray-400 line-through">
                             {formatRupiah(product.original_price)}
                           </p>
                         )}
                       </div>
-                      
-                      {/* Total Sold Badge */}
-                      {(product.total_sold || 0) > 0 && (
-                        <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-1.5 sm:px-2 py-0.5 rounded-full">
-                          <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="currentColor" viewBox="0 0 20 20">
+
+                      {(product.total_sold || 0) > 0 ? (
+                        <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full">
+                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
                           <span className="text-xs font-semibold">{product.total_sold} terjual</span>
                         </div>
+                      ) : (
+                        <div className="h-[24px]" /> // placeholder biar tinggi konsisten
                       )}
                     </div>
-                  </div>
 
-                  {/* Order Button */}
-                  <button 
-                    disabled={isStoreClosed}
-                    className={`${
-                      isStoreClosed 
-                        ? 'bg-gray-400 cursor-not-allowed' 
+                    {/* Tombol selalu di bawah */}
+                    <button
+                      disabled={isStoreClosed}
+                      className={`mt-auto ${isStoreClosed
+                        ? 'bg-gray-400 cursor-not-allowed'
                         : product.is_hot_deal
-                          ? 'bg-red-600 hover:bg-red-700 transform hover:scale-105'
-                          : 'bg-primary-600 hover:bg-primary-700 transform hover:scale-105'
-                    } text-white rounded-lg sm:rounded-xl px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-2 w-full`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isStoreClosed) {
-                        handleSelectProduct(product);
-                      }
-                    }}
-                  >
-                    {isStoreClosed ? (
-                      <>
-                        <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <span>Tutup</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>Pesan</span>
-                      </>
-                    )}
-                  </button>
+                          ? 'bg-red-600 hover:bg-red-700'
+                          : 'bg-primary-600 hover:bg-primary-700'
+                        } text-white rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 w-full`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isDisabled) handleSelectProduct(product);
+                      }}
+                    >
+                      {isDisabled ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          <span>Tidak Tersedia</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>Pesan</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -612,7 +636,7 @@ const CustomerMenu = () => {
 
             <div className="p-6">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
-              
+
               {/* Hot Deal Badge in Modal */}
               {selectedProduct.is_hot_deal && (
                 <div className="flex items-center gap-2 mb-3">
@@ -626,14 +650,14 @@ const CustomerMenu = () => {
                   )}
                 </div>
               )}
-              
+
               {/* Product Description */}
               {selectedProduct.description && (
                 <p className="text-gray-600 text-sm sm:text-base leading-relaxed mb-4">
                   {selectedProduct.description}
                 </p>
               )}
-              
+
               {/* Price & Sold Count */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-baseline gap-3">
@@ -647,7 +671,7 @@ const CustomerMenu = () => {
                     </p>
                   )}
                 </div>
-                
+
                 {/* Total Sold Badge */}
                 {(selectedProduct.total_sold || 0) > 0 && (
                   <div className="flex items-center gap-1.5 bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full">
@@ -659,80 +683,71 @@ const CustomerMenu = () => {
                 )}
               </div>
 
-              {/* ENHANCED Modifiers with Sorting and Better UI */}
-              {getProductModifierGroups(selectedProduct.id).map((group, groupIndex) => {
+              {/* Modifiers (tanpa icon) */}
+              {getProductModifierGroups(selectedProduct.id).map((group) => {
                 const isMultiple = group.selection_type === 'multiple';
                 const selectedCount = (selectedModifiers[group.id] || []).length;
-                
-                // Determine group type for icon
-                const groupName = group.name.toLowerCase();
-                const isPedas = groupName.includes('pedas') || groupName.includes('kepedasan') || groupName.includes('level');
-                const isAddon = groupName.includes('addon') || groupName.includes('tambahan') || groupName.includes('topping');
-                
+
                 return (
                   <div key={group.id} className="mb-6 pb-6 border-b last:border-b-0">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        {/* Icon based on group type */}
-                        {isPedas && <span className="text-2xl">🌶️</span>}
-                        {isAddon && <span className="text-2xl">➕</span>}
-                        {!isPedas && !isAddon && <span className="text-2xl">⚙️</span>}
-                        
                         <h3 className="font-bold text-lg text-gray-900">
                           {group.name}
                           {group.is_required && <span className="text-red-500 ml-2">*</span>}
                         </h3>
                       </div>
+
                       <div className="flex items-center gap-2">
                         {isMultiple && selectedCount > 0 && (
                           <span className="text-xs px-2 py-1 bg-primary-100 text-primary-700 rounded-full font-bold">
                             {selectedCount}/{group.max_select}
                           </span>
                         )}
-                        <span className={`text-xs sm:text-sm px-3 py-1 rounded-full font-medium ${
-                          isMultiple 
-                            ? 'bg-purple-100 text-purple-700' 
-                            : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {group.selection_type === 'single' ? '🔘 Pilih 1' : `☑️ Max ${group.max_select}`}
+
+                        <span
+                          className={`text-xs sm:text-sm px-3 py-1 rounded-full font-medium ${isMultiple ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            }`}
+                        >
+                          {group.selection_type === 'single' ? 'Pilih 1' : `Max ${group.max_select}`}
                         </span>
                       </div>
                     </div>
-                    
+
                     <div className={isMultiple ? 'space-y-3' : 'space-y-2'}>
-                      {getGroupModifiers(group.id).map((modifier, modIndex) => {
+                      {getGroupModifiers(group.id).map((modifier) => {
                         const isChecked = (selectedModifiers[group.id] || []).includes(modifier.id);
-                        
+
                         if (isMultiple) {
-                          // ENHANCED: Checkbox style for multiple selection (AddOns)
+                          // Checkbox style (multiple)
                           return (
                             <label
                               key={modifier.id}
-                              className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                                isChecked
-                                  ? 'border-purple-500 bg-purple-50 shadow-md'
-                                  : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
-                              }`}
+                              className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${isChecked
+                                ? 'border-purple-500 bg-purple-50 shadow-md'
+                                : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
+                                }`}
                             >
                               <div className="flex items-center flex-1">
                                 {/* Custom Checkbox */}
-                                <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mr-3 transition-all ${
-                                  isChecked 
-                                    ? 'bg-purple-500 border-purple-500' 
-                                    : 'border-gray-300 bg-white'
-                                }`}>
+                                <div
+                                  className={`w-6 h-6 rounded-md border-2 flex items-center justify-center mr-3 transition-all ${isChecked ? 'bg-purple-500 border-purple-500' : 'border-gray-300 bg-white'
+                                    }`}
+                                >
                                   {isChecked && (
                                     <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                     </svg>
                                   )}
                                 </div>
+
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={(e) => handleModifierChange(group.id, modifier.id, e.target.checked)}
                                   className="hidden"
                                 />
+
                                 <div className="flex-1">
                                   <span className="font-medium text-gray-900">{modifier.name}</span>
                                   {modifier.price_delta > 0 && (
@@ -744,38 +759,39 @@ const CustomerMenu = () => {
                               </div>
                             </label>
                           );
-                        } else {
-                          // Radio style for single selection (Level Pedas)
-                          return (
-                            <label
-                              key={modifier.id}
-                              className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                                isChecked
-                                  ? 'border-primary-500 bg-primary-50 shadow-md'
-                                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name={`modifier-group-${group.id}`}
-                                checked={isChecked}
-                                onChange={(e) => handleModifierChange(group.id, modifier.id, e.target.checked)}
-                                className="w-5 h-5 text-primary-600 mr-3 cursor-pointer"
-                              />
-                              <span className="flex-1 font-medium text-gray-900">{modifier.name}</span>
-                              {modifier.price_delta > 0 && (
-                                <span className="text-primary-600 font-bold">+{formatRupiah(modifier.price_delta)}</span>
-                              )}
-                            </label>
-                          );
                         }
+
+                        // Radio style (single)
+                        return (
+                          <label
+                            key={modifier.id}
+                            className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${isChecked
+                              ? 'border-primary-500 bg-primary-50 shadow-md'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                              }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`modifier-group-${group.id}`}
+                              checked={isChecked}
+                              onChange={(e) => handleModifierChange(group.id, modifier.id, e.target.checked)}
+                              className="w-5 h-5 text-primary-600 mr-3 cursor-pointer"
+                            />
+
+                            <span className="flex-1 font-medium text-gray-900">{modifier.name}</span>
+
+                            {modifier.price_delta > 0 && (
+                              <span className="text-primary-600 font-bold">+{formatRupiah(modifier.price_delta)}</span>
+                            )}
+                          </label>
+                        );
                       })}
                     </div>
-                    
+
                     {/* Helper text for multiple selection */}
                     {isMultiple && (
                       <p className="text-xs text-gray-500 mt-2 ml-1">
-                        💡 Anda bisa pilih hingga {group.max_select} item
+                        Anda bisa pilih hingga {group.max_select} item
                       </p>
                     )}
                   </div>
@@ -807,18 +823,17 @@ const CustomerMenu = () => {
                 <button
                   onClick={addToCart}
                   disabled={!canAddToCart()}
-                  className={`w-full py-4 text-lg font-bold shadow-xl flex items-center justify-between rounded-xl transition-all ${
-                    canAddToCart()
-                      ? 'btn-primary hover:scale-[1.02]'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`w-full py-4 text-lg font-bold shadow-xl flex items-center justify-between rounded-xl transition-all ${canAddToCart()
+                    ? 'btn-primary hover:scale-[1.02]'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   <span>Tambah ke Cart</span>
                   <span>{formatRupiah(calculateItemSubtotal())}</span>
                 </button>
                 {!canAddToCart() && (
                   <p className="text-xs text-red-500 text-center mt-2">
-                    * Silahkan Lengkapi Pilihan Anda.
+                    * Mohon pilih modifier yang wajib dipilih
                   </p>
                 )}
               </div>
@@ -842,7 +857,7 @@ const CustomerMenu = () => {
       {showCheckout && (
         <Checkout
           cart={cart}
-          onClose={handleCloseCheckout}
+          onClose={handleBackToMenu}
           onSuccess={handleCheckoutSuccess}
           isDeliveryDisabled={isDeliveryDisabled}
         />
@@ -858,19 +873,19 @@ const CustomerMenu = () => {
             </p>
 
             {/* WhatsApp Contact */}
-            <a 
+            <a
               href={`https://wa.me/${process.env.REACT_APP_WHATSAPP_NUMBER}`}
-              target="_blank" 
+              target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600 transition-colors group"
             >
               <span>Butuh Bantuan? Hubungi kami</span>
-              <svg 
-                className="w-5 h-5 text-green-500 group-hover:text-green-600 transition-colors" 
-                fill="currentColor" 
+              <svg
+                className="w-5 h-5 text-green-500 group-hover:text-green-600 transition-colors"
+                fill="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
               </svg>
             </a>
           </div>

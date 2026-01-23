@@ -115,7 +115,9 @@ export const staffAPI = {
 
   // Store Settings
   getStoreSettings: () => api.get('/staff/settings'),
+  getStoreStatus: () => api.get('/staff/settings/status'),
   updateStoreSetting: (key, value) => api.patch('/staff/settings', { key, value }),
+  syncAutoSchedule: () => api.post('/staff/settings/sync-schedule'),
 
   // ========== DISCOUNTS API (NEW) ==========
   getDiscounts: (activeOnly = false) => api.get(`/staff/discounts${activeOnly ? '?active=true' : ''}`),

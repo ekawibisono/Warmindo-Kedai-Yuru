@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
@@ -34,25 +34,16 @@ const StoreSettings = () => {
         store_phone: ''
     });
 
-    useEffect(() => {
-        fetchSettings();
-        
-        // Set up real-time status checking every 30 seconds
-        const statusInterval = setInterval(fetchRealTimeStatus, 30000);
-        
-        return () => clearInterval(statusInterval);
-    }, []);
-
-    const fetchRealTimeStatus = async () => {
+    const fetchRealTimeStatus = useCallback(async () => {
         try {
             const response = await staffAPI.getStoreStatus();
             setRealTimeStatus(response.data);
         } catch (error) {
             console.error('Error fetching real-time status:', error);
         }
-    };
+    }, []);
 
-    const fetchSettings = async () => {
+    const fetchSettings = useCallback(async () => {
         setLoading(true);
         try {
             const response = await staffAPI.getStoreSettings();
@@ -86,7 +77,16 @@ const StoreSettings = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [fetchRealTimeStatus]);
+
+    useEffect(() => {
+        fetchSettings();
+        
+        // Set up real-time status checking every 30 seconds
+        const statusInterval = setInterval(fetchRealTimeStatus, 30000);
+        
+        return () => clearInterval(statusInterval);
+    }, [fetchSettings, fetchRealTimeStatus]);
 
     const updateSetting = async (key, value) => {
         setSaving(true);

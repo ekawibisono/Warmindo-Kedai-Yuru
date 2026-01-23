@@ -12,7 +12,8 @@ const Orders = () => {
     const [detailLoading, setDetailLoading] = useState(false);
     const [filter, setFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
-    
+    // const [showMaintenance, setShowMaintenance] = useState(false);
+
     // State for confirm dialog
     const [confirmDialog, setConfirmDialog] = useState({
         isOpen: false,
@@ -59,9 +60,13 @@ const Orders = () => {
 
     const openConfirmDialog = (orderId, orderNo, status) => {
         const statusMessages = {
-            'canceled': {
+            'cancelled': {
                 title: 'Tolak Pesanan?',
                 message: `Yakin ingin menolak/membatalkan pesanan ${orderNo}? Tindakan ini tidak dapat dibatalkan.`
+            },
+            'verify_payment': {
+                title: 'Verifikasi Pembayaran QRIS?',
+                message: `Redirect ke halaman verifikasi pembayaran untuk pesanan ${orderNo}?`
             },
             'confirmed': {
                 title: 'Konfirmasi Pesanan?',
@@ -122,10 +127,32 @@ const Orders = () => {
             message: ''
         });
     };
+    const normalizeKitchenStatus = (s) => {
+        if (!s) return s;
+        const v = String(s).trim().toLowerCase();
+
+        // perbaiki typo umum
+        if (v === "canceled") return "cancelled";   // 1 L -> 2 L
+        if (v === "cancel") return "cancelled";
+        if (v === "complete") return "completed";
+
+        return v;
+    };
 
     const updateStatus = async () => {
         try {
-            await staffAPI.updateKitchenStatus(confirmDialog.orderId, confirmDialog.status);
+            // Handle special case for payment verification
+            if (confirmDialog.status === 'verify_payment') {
+                // Redirect to payment verification page
+                const paymentVerificationUrl = `/admin/payments?order=${confirmDialog.orderNo}`;
+                window.open(paymentVerificationUrl, '_blank');
+                notify.success('Membuka halaman verifikasi pembayaran');
+                closeConfirmDialog();
+                return;
+            }
+            
+            const normalized = normalizeKitchenStatus(confirmDialog.status);
+            await staffAPI.updateKitchenStatus(confirmDialog.orderId, normalized);
             notify.success('Status berhasil diupdate');
             fetchOrders();
             if (selectedOrder && selectedOrder.order.id === confirmDialog.orderId) {
@@ -195,22 +222,25 @@ const Orders = () => {
 
     // Get next actions based on current status and order type
     const getNextActions = (order) => {
-        const { status, type } = order;
+        const { status, type, payment_method } = order;
         const isDelivery = type === 'delivery';
         const actions = [];
 
-        // Add reject/cancel button for pending and draft orders
-        if (status === 'pending' || status === 'draft') {
+        // Default to cash if payment_method is null/undefined
+        const paymentType = payment_method || 'cash';
+
+        // For QRIS payments with pending status - need payment verification
+        if ((status === 'pending' || status === 'draft') && paymentType === 'qris') {
             actions.push({
-                label: 'Tolak Pesanan',
-                status: 'canceled',
-                className: 'bg-red-600 hover:bg-red-700',
-                icon: '✗'
+                label: 'Verifikasi Pembayaran',
+                status: 'verify_payment',
+                className: 'bg-yellow-600 hover:bg-yellow-700',
+                icon: '💳'
             });
         }
 
-        // Add confirm button for pending orders
-        if (status === 'pending') {
+        // For QRIS payments - add confirm button after verification
+        if (status === 'pending' && paymentType === 'qris') {
             actions.push({
                 label: 'Konfirmasi Pesanan',
                 status: 'confirmed',
@@ -219,7 +249,17 @@ const Orders = () => {
             });
         }
 
-        // Common flow
+        // For Cash payments with confirmed status - allow rejection
+        if (status === 'confirmed' && paymentType === 'cash') {
+            actions.push({
+                label: 'Tolak Pesanan',
+                status: 'cancelled',
+                className: 'bg-red-600 hover:bg-red-700',
+                icon: '✗'
+            });
+        }
+
+        // Common flow for confirmed orders (regardless of payment method)
         if (status === 'confirmed') {
             actions.push({
                 label: 'Mulai Masak',
@@ -323,7 +363,7 @@ const Orders = () => {
     const getTodayOrders = (orders) => {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
+
         return orders.filter(order => {
             const orderDate = new Date(order.created_at);
             return orderDate >= today;
@@ -369,7 +409,7 @@ const Orders = () => {
                             📅 Menampilkan pesanan hari ini: <span className="font-semibold text-primary-600">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                         </p>
                         <p className="text-sm text-gray-500 mt-1">
-                            Total pesanan hari ini: <span className="font-semibold">{todayOrders.length}</span> | 
+                            Total pesanan hari ini: <span className="font-semibold">{todayOrders.length}</span> |
                             Ditampilkan: <span className="font-semibold">{filteredOrders.length}</span>
                         </p>
                     </div>
@@ -389,31 +429,28 @@ const Orders = () => {
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setFilter('all')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        filter === 'all'
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'all'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     Semua
                                 </button>
                                 <button
                                     onClick={() => setFilter('delivery')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        filter === 'delivery'
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'delivery'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     🚗 Delivery
                                 </button>
                                 <button
                                     onClick={() => setFilter('pickup')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        filter === 'pickup'
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'pickup'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     🏪 Pickup
                                 </button>
@@ -425,31 +462,28 @@ const Orders = () => {
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => setStatusFilter('all')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        statusFilter === 'all'
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === 'all'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     Semua
                                 </button>
                                 <button
                                     onClick={() => setStatusFilter('active')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        statusFilter === 'active'
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === 'active'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     Active
                                 </button>
                                 <button
                                     onClick={() => setStatusFilter('completed')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                        statusFilter === 'completed'
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === 'completed'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     Completed
                                 </button>
@@ -468,7 +502,7 @@ const Orders = () => {
                         {filteredOrders.map((order) => {
                             const statusInfo = getStatusInfo(order.status, order.type);
                             const nextActions = getNextActions(order);
-                            
+
                             return (
                                 <div key={order.id} className="card hover:shadow-lg transition-shadow">
                                     <div className="flex justify-between items-start mb-3">
@@ -476,10 +510,20 @@ const Orders = () => {
                                             <p className="font-bold text-lg">{order.order_no}</p>
                                             <p className="text-sm text-gray-600">{order.customer_name || 'Walk-in'}</p>
                                         </div>
-                                        <span className={`${statusInfo.color} px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1`}>
-                                            <span>{statusInfo.icon}</span>
-                                            <span>{statusInfo.label}</span>
-                                        </span>
+                                        <div className="text-right">
+                                            <span className={`${statusInfo.color} px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 mb-2`}>
+                                                <span>{statusInfo.icon}</span>
+                                                <span>{statusInfo.label}</span>
+                                            </span>
+                                            {/* Payment Method Badge */}
+                                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                                order.payment_method === 'qris' 
+                                                    ? 'bg-blue-100 text-blue-800' 
+                                                    : 'bg-green-100 text-green-800'
+                                            }`}>
+                                                {order.payment_method === 'qris' ? '💳 QRIS' : '💵 CASH'}
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-2 text-sm mb-4">
@@ -569,17 +613,22 @@ const Orders = () => {
                                         </div>
                                         <div>
                                             <p className="text-gray-600">Type:</p>
-                                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                                                selectedOrder.order.type === 'delivery' 
-                                                    ? 'bg-blue-100 text-blue-800' 
+                                            <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${selectedOrder.order.type === 'delivery'
+                                                    ? 'bg-blue-100 text-blue-800'
                                                     : 'bg-green-100 text-green-800'
-                                            }`}>
+                                                }`}>
                                                 {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : '🏪 Pickup'}
                                             </span>
                                         </div>
                                         <div>
                                             <p className="text-gray-600">Payment:</p>
-                                            <p className="font-medium uppercase">{selectedOrder.order.payment_method}</p>
+                                            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${
+                                                selectedOrder.order.payment_method === 'qris' 
+                                                    ? 'bg-blue-100 text-blue-800' 
+                                                    : 'bg-green-100 text-green-800'
+                                            }`}>
+                                                {selectedOrder.order.payment_method === 'qris' ? '💳 QRIS' : '💵 CASH'}
+                                            </span>
                                         </div>
                                         <div>
                                             <p className="text-gray-600">Customer:</p>
@@ -593,6 +642,12 @@ const Orders = () => {
                                             <p className="text-gray-600">Order Time:</p>
                                             <p className="font-medium">{formatDate(selectedOrder.order.created_at)}</p>
                                         </div>
+                                        {selectedOrder.order.type === 'delivery' && selectedOrder.order.delivery_address && (
+                                            <div className="col-span-2">
+                                                <p className="text-gray-600">Alamat Pengiriman:</p>
+                                                <p className="text-gray-700 mt-1">{selectedOrder.order.delivery_address}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -649,22 +704,44 @@ const Orders = () => {
                                     {/* Print Receipt Button */}
                                     <button
                                         onClick={() => setShowReceipt(true)}
+                                        // onClick={() => setShowMaintenance(true)}
                                         className="w-full mb-4 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-4 rounded-lg text-sm flex items-center justify-center gap-2"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                         </svg>
-                                        <span>🧾 Print Struk</span>
+                                        <span>Cetak Struk</span>
                                     </button>
+                                    {/* {showMaintenance && (
+                                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+                                            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 text-center animate-fade-in">
+                                                <div className="text-4xl mb-3">🚧</div>
 
+                                                <h2 className="text-lg font-semibold text-gray-800 mb-2">
+                                                    Fitur Sedang Dalam Perbaikan
+                                                </h2>
+
+                                                <p className="text-sm text-gray-600 mb-5">
+                                                    Mohon maaf, fitur cetak struk sedang kami perbaiki agar hasilnya lebih optimal 🙏
+                                                </p>
+
+                                                <button
+                                                    onClick={() => setShowMaintenance(false)}
+                                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm font-medium"
+                                                >
+                                                    Mengerti
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )} */}
                                     <h3 className="font-bold text-lg mb-3">Update Status:</h3>
                                     <div className="space-y-2">
                                         {getNextActions(selectedOrder.order).map((action, idx) => (
                                             <button
                                                 key={idx}
                                                 onClick={() => openConfirmDialog(
-                                                    selectedOrder.order.id, 
-                                                    selectedOrder.order.order_no, 
+                                                    selectedOrder.order.id,
+                                                    selectedOrder.order.order_no,
                                                     action.status
                                                 )}
                                                 className={`w-full ${action.className} text-white font-medium py-3 px-4 rounded-lg text-sm flex items-center justify-center gap-2`}
@@ -688,9 +765,21 @@ const Orders = () => {
                 onConfirm={updateStatus}
                 title={confirmDialog.title}
                 message={confirmDialog.message}
-                confirmText={confirmDialog.status === 'canceled' ? 'Ya, Tolak' : 'Ya, Lanjutkan'}
+                confirmText={
+                    confirmDialog.status === 'cancelled' 
+                        ? 'Ya, Tolak' 
+                        : confirmDialog.status === 'verify_payment'
+                            ? 'Ya, Buka Verifikasi'
+                            : 'Ya, Lanjutkan'
+                }
                 cancelText="Batal"
-                type={confirmDialog.status === 'canceled' ? 'danger' : 'primary'}
+                type={
+                    confirmDialog.status === 'cancelled' 
+                        ? 'danger' 
+                        : confirmDialog.status === 'verify_payment'
+                            ? 'warning'
+                            : 'primary'
+                }
             />
 
             {/* Receipt Modal */}

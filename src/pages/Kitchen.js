@@ -3,12 +3,14 @@ import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
 import notify from '../components/common/Toast';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import Receipt from '../components/admin/Receipt';
 
 const Kitchen = () => {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   
   // State for confirm dialog
   const [confirmDialog, setConfirmDialog] = useState({
@@ -140,11 +142,10 @@ const Kitchen = () => {
   };
 
   const getNextActions = (order) => {
-    const { status, type } = order;
-    const isDelivery = type === 'delivery';
-    const isDineIn = type === 'dine_in';
+    const { status } = order;
     const actions = [];
 
+    // Kitchen hanya bertanggung jawab untuk proses memasak
     if (status === 'confirmed') {
       actions.push({
         label: 'Mulai Masak',
@@ -163,77 +164,8 @@ const Kitchen = () => {
       });
     }
 
-    // Flow untuk Delivery
-    if (isDelivery) {
-      if (status === 'ready') {
-        actions.push({
-          label: 'Mulai Kirim',
-          status: 'delivering',
-          className: 'btn-info',
-          icon: '🚗'
-        });
-      }
-
-      if (status === 'delivering') {
-        actions.push({
-          label: 'Sudah Sampai',
-          status: 'delivered',
-          className: 'btn-success',
-          icon: '✓'
-        });
-      }
-
-      if (status === 'delivered') {
-        actions.push({
-          label: 'Selesaikan',
-          status: 'completed',
-          className: 'btn-success',
-          icon: '🎉'
-        });
-      }
-    }
-
-    // Flow untuk Dine In (Langsung completed setelah ready)
-    if (isDineIn) {
-      if (status === 'ready') {
-        actions.push({
-          label: 'Antar ke Meja',
-          status: 'completed',
-          className: 'btn-success',
-          icon: '🍽️'
-        });
-      }
-    }
-
-    // Flow untuk Pickup
-    if (!isDelivery && !isDineIn) {
-      if (status === 'ready') {
-        actions.push({
-          label: 'Tunggu Diambil',
-          status: 'waiting_pickup',
-          className: 'btn-info',
-          icon: '🏪'
-        });
-      }
-
-      if (status === 'waiting_pickup') {
-        actions.push({
-          label: 'Sudah Diambil',
-          status: 'picked_up',
-          className: 'btn-success',
-          icon: '✓'
-        });
-      }
-
-      if (status === 'picked_up') {
-        actions.push({
-          label: 'Selesaikan',
-          status: 'completed',
-          className: 'btn-success',
-          icon: '🎉'
-        });
-      }
-    }
+    // Setelah ready, kitchen tidak bisa mengontrol lagi
+    // Delivery, pickup, dan dine-in harus dihandle oleh staff lain
 
     return actions;
   };
@@ -244,6 +176,12 @@ const Kitchen = () => {
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(number);
+  };
+
+  const handlePrintReceipt = () => {
+    if (selectedOrder) {
+      setShowReceipt(true);
+    }
   };
 
   if (loading) {
@@ -461,23 +399,51 @@ const Kitchen = () => {
                 )}
 
                 <div className="border-t pt-4">
-                  <h3 className="font-bold text-lg mb-3">Update Status:</h3>
-                  <div className="space-y-2">
-                    {getNextActions(selectedOrder.order).map((action, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => openConfirmDialog(
-                          selectedOrder.order.id, 
-                          selectedOrder.order.order_no, 
-                          action.status
-                        )}
-                        className={`w-full ${action.className} text-sm py-3 flex items-center justify-center gap-2`}
-                      >
-                        <span>{action.icon}</span>
-                        <span>{action.label}</span>
-                      </button>
-                    ))}
+                  <div className="mb-4">
+                    <button
+                      onClick={handlePrintReceipt}
+                      className="w-full btn-secondary text-sm py-3 flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-2a2 2 0 00-2-2H9a2 2 0 00-2 2v2a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      <span>Cetak Struk</span>
+                    </button>
                   </div>
+                  
+                  {getNextActions(selectedOrder.order).length > 0 ? (
+                    <>
+                      <h3 className="font-bold text-lg mb-3">Aksi Kitchen:</h3>
+                      <div className="space-y-2">
+                        {getNextActions(selectedOrder.order).map((action, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => openConfirmDialog(
+                              selectedOrder.order.id, 
+                              selectedOrder.order.order_no, 
+                              action.status
+                            )}
+                            className={`w-full ${action.className} text-sm py-3 flex items-center justify-center gap-2`}
+                          >
+                            <span>{action.icon}</span>
+                            <span>{action.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                      <svg className="mx-auto h-12 w-12 text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-sm font-medium text-green-800">Pesanan siap!</p>
+                      <p className="text-xs text-green-600 mt-1">
+                        {selectedOrder.order.type === 'delivery' && 'Menunggu driver untuk pengiriman'}
+                        {selectedOrder.order.type === 'dine_in' && 'Menunggu waitstaff untuk antar ke meja'}
+                        {selectedOrder.order.type !== 'delivery' && selectedOrder.order.type !== 'dine_in' && 'Menunggu customer untuk pickup'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -495,6 +461,15 @@ const Kitchen = () => {
         cancelText="Batal"
         type="primary"
       />
+
+      {/* Receipt Modal */}
+      {showReceipt && selectedOrder && (
+        <Receipt
+          order={selectedOrder.order}
+          items={selectedOrder.items}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
     </AdminLayout>
   );
 };
