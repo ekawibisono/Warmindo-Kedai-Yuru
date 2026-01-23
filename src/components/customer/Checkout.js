@@ -177,8 +177,6 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
         discount_amount: appliedDiscount ? appliedDiscount.discount_amount : 0
       };
 
-      console.log('📤 Creating order:', orderPayload);
-
       const response = await publicAPI.createOrder(orderPayload);
 
       const orderData = {
@@ -258,8 +256,6 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     setLoading(true);
 
     try {
-      console.log('📤 Uploading QRIS proof, amount:', totalAmount);
-      
       await publicAPI.uploadQrisProof(
         orderData.order.order_no,
         orderData.tracking_token,
