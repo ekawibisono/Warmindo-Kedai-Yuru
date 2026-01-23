@@ -289,15 +289,15 @@ const Discounts = () => {
 
     return (
         <AdminLayout>
-            <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
+            <div className="p-3 sm:p-4 lg:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 space-y-3 sm:space-y-0">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Kelola Diskon & Promo</h1>
-                        <p className="text-sm text-gray-600 mt-1">Buat dan kelola kode promo untuk pelanggan</p>
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Kelola Diskon & Promo</h1>
+                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Buat dan kelola kode promo untuk pelanggan</p>
                     </div>
                     <button
                         onClick={handleOpenCreate}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
+                        className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -307,26 +307,28 @@ const Discounts = () => {
                 </div>
 
                 {loading ? (
-                    <div className="flex justify-center items-center h-64">
+                    <div className="flex justify-center items-center h-48 sm:h-64">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                     </div>
                 ) : discounts.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="text-center py-12 sm:py-16 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                        <svg className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <h3 className="mt-4 text-lg font-medium text-gray-900">Belum ada diskon</h3>
+                        <h3 className="mt-4 text-base sm:text-lg font-medium text-gray-900">Belum ada diskon</h3>
                         <p className="mt-2 text-sm text-gray-500">Mulai dengan membuat diskon pertama Anda</p>
                         <button
                             onClick={handleOpenCreate}
-                            className="mt-6 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                            className="mt-6 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors text-sm sm:text-base"
                         >
                             Buat Diskon Baru
                         </button>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
+                    <>
+                        {/* Desktop Table View */}
+                        <div className="hidden lg:block bg-white rounded-lg shadow-sm overflow-hidden">
+                            <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode & Nama</th>
@@ -433,19 +435,139 @@ const Discounts = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Mobile/Tablet Card View */}
+                    <div className="lg:hidden space-y-4">
+                        {discounts.map((discount) => (
+                            <div key={discount.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                                {/* Header: Name and Status */}
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="flex-1">
+                                        {discount.code && (
+                                            <div className="text-xs font-mono font-bold text-blue-600 mb-1">
+                                                {discount.code}
+                                            </div>
+                                        )}
+                                        <h3 className="text-sm font-semibold text-gray-900 leading-tight">{discount.name}</h3>
+                                        {discount.description && (
+                                            <p className="text-xs text-gray-500 mt-1">{discount.description}</p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => handleToggleActive(discount)}
+                                        className={`ml-3 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                            discount.is_active
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                        }`}
+                                    >
+                                        {discount.is_active ? 'Aktif' : 'Nonaktif'}
+                                    </button>
+                                </div>
+
+                                {/* Value and Scope */}
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-1">Nilai Diskon</p>
+                                        <p className="text-sm font-bold text-gray-900">
+                                            {discount.discount_type === 'percentage' 
+                                                ? `${discount.value}%`
+                                                : `Rp ${discount.value.toLocaleString('id-ID')}`
+                                            }
+                                        </p>
+                                        {discount.max_discount_amount && (
+                                            <p className="text-xs text-gray-500">Maks. Rp {discount.max_discount_amount.toLocaleString('id-ID')}</p>
+                                        )}
+                                        {discount.min_order_amount > 0 && (
+                                            <p className="text-xs text-gray-500">Min. Rp {discount.min_order_amount.toLocaleString('id-ID')}</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 mb-1">Berlaku Untuk</p>
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                            {getScopeLabel(discount)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Limits */}
+                                {(discount.max_items || discount.max_quantity_per_item) && (
+                                    <div className="mb-3">
+                                        <p className="text-xs text-gray-500 mb-1">Batasan</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {discount.max_items && (
+                                                <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
+                                                    Maks. {discount.max_items} item
+                                                </span>
+                                            )}
+                                            {discount.max_quantity_per_item && (
+                                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full font-medium">
+                                                    Maks. {discount.max_quantity_per_item} qty/item
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Period and Usage */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 text-xs">
+                                    <div>
+                                        <p className="text-gray-500 mb-1">Periode</p>
+                                        <p className="text-gray-900">
+                                            {discount.start_date ? new Date(discount.start_date).toLocaleDateString('id-ID') : '-'}
+                                            {' s/d '}
+                                            {discount.end_date ? new Date(discount.end_date).toLocaleDateString('id-ID') : '-'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500 mb-1">Penggunaan</p>
+                                        <p className="text-gray-900">
+                                            <span className="font-medium">{discount.used_count || 0}</span>
+                                            {discount.usage_limit && (
+                                                <span className="text-gray-500"> / {discount.usage_limit}</span>
+                                            )}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <button
+                                        onClick={() => handleOpenEdit(discount)}
+                                        className="flex-1 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => setDeleteDialog({ isOpen: true, id: discount.id, name: discount.name })}
+                                        className="flex-1 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 font-medium transition-colors text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    </>
                 )}
 
                 {/* Modal Form */}
                 {showModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                            <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-                                <h2 className="text-xl font-bold text-gray-900">
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+                        <div className="bg-white rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+                            <div className="sticky top-0 bg-white border-b px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between z-10">
+                                <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                                     {editingDiscount ? 'Edit Diskon' : 'Buat Diskon Baru'}
                                 </h2>
                                 <button
                                     onClick={() => setShowModal(false)}
-                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    className="text-gray-400 hover:text-gray-600 transition-colors p-1"
                                 >
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -453,8 +575,8 @@ const Discounts = () => {
                                 </button>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="p-6">
-                                <div className="space-y-5">
+                            <form onSubmit={handleSubmit} className="p-4 sm:p-6">
+                                <div className="space-y-4 sm:space-y-5">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">
                                             Nama Diskon <span className="text-red-500">*</span>
@@ -463,7 +585,7 @@ const Discounts = () => {
                                             type="text"
                                             value={formData.name}
                                             onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                             placeholder="Diskon Hari Kemerdekaan"
                                             required
                                         />
@@ -761,13 +883,13 @@ const Discounts = () => {
                                         </div>
                                     )}
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Tipe</label>
                                             <select
                                                 value={formData.discount_type}
                                                 onChange={(e) => setFormData({...formData, discount_type: e.target.value})}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                             >
                                                 <option value="percentage">Persentase (%)</option>
                                                 <option value="fixed">Nominal (Rp)</option>
@@ -783,14 +905,14 @@ const Discounts = () => {
                                                 step="any"
                                                 value={formData.value}
                                                 onChange={(e) => setFormData({...formData, value: e.target.value})}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                                 required
                                                 placeholder={formData.discount_type === 'percentage' ? '100' : '50000'}
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Min. Order (Rp)</label>
                                             <input
@@ -799,7 +921,7 @@ const Discounts = () => {
                                                 step="any"
                                                 value={formData.min_order_amount}
                                                 onChange={(e) => setFormData({...formData, min_order_amount: e.target.value})}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                                 placeholder="0"
                                             />
                                         </div>
@@ -811,7 +933,7 @@ const Discounts = () => {
                                                 step="any"
                                                 value={formData.max_discount_amount}
                                                 onChange={(e) => setFormData({...formData, max_discount_amount: e.target.value})}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                                 placeholder="Unlimited"
                                             />
                                         </div>
@@ -867,14 +989,14 @@ const Discounts = () => {
                                             Contoh: isi <strong>1</strong> jika promo hanya untuk 1 qty (tidak boleh 2x Nasi Goreng).
                                         </p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Mulai</label>
                                             <input
                                                 type="datetime-local"
                                                 value={formData.start_date}
                                                 onChange={(e) => setFormData({...formData, start_date: e.target.value})}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                             />
                                         </div>
                                         <div>
@@ -883,7 +1005,7 @@ const Discounts = () => {
                                                 type="datetime-local"
                                                 value={formData.end_date}
                                                 onChange={(e) => setFormData({...formData, end_date: e.target.value})}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                                className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                             />
                                         </div>
                                     </div>
@@ -901,17 +1023,17 @@ const Discounts = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
+                                <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6 pt-6 border-t">
                                     <button
                                         type="button"
                                         onClick={() => setShowModal(false)}
-                                        className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+                                        className="w-full sm:w-auto px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors text-sm sm:text-base order-2 sm:order-1"
                                     >
                                         Batal
                                     </button>
                                     <button
                                         type="submit"
-                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                                        className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors text-sm sm:text-base order-1 sm:order-2"
                                     >
                                         {editingDiscount ? 'Simpan Perubahan' : 'Buat Diskon'}
                                     </button>
