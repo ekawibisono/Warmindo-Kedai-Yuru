@@ -464,7 +464,7 @@ const CustomerMenu = () => {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
             {filteredProducts.map((product) => {
               const productAvailable = isProductAvailable(product);
               const isDisabled = isStoreClosed || !productAvailable;
@@ -477,8 +477,8 @@ const CustomerMenu = () => {
                       : 'cursor-pointer border-gray-200 hover:border-primary-400 hover:shadow-2xl'
                     }`}
                 >
-                  {/* Product Image (konsisten) */}
-                  <div className="relative overflow-hidden bg-gray-100 w-[800px] h-[230px] max-w-full flex-shrink-0">
+                  {/* Product Image (responsive with proper aspect ratio) */}
+                  <div className="relative overflow-hidden bg-gray-100 w-full aspect-[4/3] sm:aspect-[4/3] md:aspect-[3/2] flex-shrink-0">
                     {product.image_url ? (
                       <>
                         <img
@@ -516,18 +516,18 @@ const CustomerMenu = () => {
                     )}
                   </div>
 
-                  {/* Product Info (kunci tinggi agar stabil) */}
-                  <div className="p-3 sm:p-4 flex flex-col flex-1">
-                    {/* Nama produk: kunci tinggi 2 baris */}
-                    <h3 className="font-bold text-xs sm:text-base text-gray-900 line-clamp-2 leading-snug min-h-[34px] sm:min-h-[44px]">
+                  {/* Product Info (responsive layout) */}
+                  <div className="p-2 sm:p-3 lg:p-4 flex flex-col flex-1">
+                    {/* Product name with responsive text sizing */}
+                    <h3 className="font-bold text-xs sm:text-sm lg:text-base text-gray-900 line-clamp-2 leading-snug min-h-[28px] sm:min-h-[32px] lg:min-h-[44px] mb-2">
                       {product.name}
                     </h3>
 
-                    {/* Harga & Terjual: kunci tinggi biar rapi */}
-                    <div className="mt-2 flex items-center justify-between min-h-[40px]">
+                    {/* Price & sold info with responsive layout */}
+                    <div className="mt-1 flex items-center justify-between min-h-[32px] sm:min-h-[36px] lg:min-h-[40px] mb-2 sm:mb-3">
                       <div className="flex flex-col">
                         <p
-                          className={`text-sm sm:text-lg font-bold ${product.is_hot_deal ? 'text-red-600' : 'text-primary-600'
+                          className={`text-xs sm:text-sm lg:text-lg font-bold ${product.is_hot_deal ? 'text-red-600' : 'text-primary-600'}
                             }`}
                         >
                           {formatRupiah(product.price)}
@@ -541,18 +541,18 @@ const CustomerMenu = () => {
                       </div>
 
                       {(product.total_sold || 0) > 0 ? (
-                        <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-2 py-1 rounded-full">
-                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="flex items-center gap-1 bg-orange-50 text-orange-600 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
+                          <svg className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
                           <span className="text-xs font-semibold">{product.total_sold} terjual</span>
                         </div>
                       ) : (
-                        <div className="h-[24px]" /> // placeholder biar tinggi konsisten
+                        <div className="h-[20px] sm:h-[24px]" />
                       )}
                     </div>
 
-                    {/* Tombol selalu di bawah */}
+                    {/* Responsive order button */}
                     <button
                       disabled={isStoreClosed}
                       className={`mt-auto ${isStoreClosed
@@ -560,7 +560,7 @@ const CustomerMenu = () => {
                         : product.is_hot_deal
                           ? 'bg-red-600 hover:bg-red-700'
                           : 'bg-primary-600 hover:bg-primary-700'
-                        } text-white rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 w-full`}
+                        } text-white rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-1 sm:gap-2 w-full`}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isDisabled) handleSelectProduct(product);
@@ -568,17 +568,17 @@ const CustomerMenu = () => {
                     >
                       {isDisabled ? (
                         <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
-                          <span>Tidak Tersedia</span>
+                          <span className="text-xs sm:text-sm">Tidak Tersedia</span>
                         </>
                       ) : (
                         <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                           </svg>
-                          <span>Pesan</span>
+                          <span className="text-xs sm:text-sm">Pesan</span>
                         </>
                       )}
                     </button>
