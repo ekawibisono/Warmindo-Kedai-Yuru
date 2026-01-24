@@ -189,14 +189,20 @@ function App() {
           <Route path="*" element={<Navigate to="/menu" replace />} />
         </Routes>
         <ToastContainer
-          position="top-right"
+          position={window.innerWidth <= 768 ? "top-center" : "top-right"}
           autoClose={3000}
           hideProgressBar={false}
           newestOnTop={false}
           closeOnClick
           rtl={false}
-          pauseOnFocusLoss
+          pauseOnFocusLoss={window.innerWidth > 768}
+          pauseOnHover={window.innerWidth > 768}
+          draggable={window.innerWidth > 768}
           theme="light"
+          limit={window.innerWidth <= 768 ? 3 : 5}
+          style={{
+            fontSize: '14px'
+          }}
         />
       </Router>
     </AuthProvider>

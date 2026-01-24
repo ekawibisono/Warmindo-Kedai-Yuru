@@ -209,6 +209,10 @@ export const staffAPI = {
   // Delete (deactivate) staff
   deleteStaff: (id) => api.delete(`/staff/management/${id}`),
 
+  // ========== CUSTOMER SEARCH API (NEW) ==========
+  // Search existing customers for POS integration
+  searchCustomers: (query) => api.get(`/staff/customers/search?q=${encodeURIComponent(query)}`),
+
 };
 
 export default api;

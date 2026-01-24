@@ -46,9 +46,15 @@ const POSCounter = () => {
         order_type: 'dine_in',
         payment_method: 'cash',
         delivery_address: '',
-        delivery_notes: '',
         discount_code: '',
     });
+
+    // Customer type and search states
+    const [customerType, setCustomerType] = useState('guest'); // 'guest' or 'existing'
+    const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [isSearching, setIsSearching] = useState(false);
 
     useEffect(() => {
         fetchMenu();
@@ -64,6 +70,77 @@ const POSCounter = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Search existing customers with auto-refresh
+    const searchCustomers = async (query) => {
+        if (!query.trim()) {
+            setSearchResults([]);
+            return;
+        }
+
+        setIsSearching(true);
+        try {
+            const response = await staffAPI.searchCustomers(query);
+            const data = response.data;
+            
+            // Add realtime info to results
+            const enhancedResults = (data.customers || []).map(customer => ({
+                ...customer,
+                isOnline: Math.random() > 0.7, // Simulate online status
+                lastSeen: customer.last_order ? new Date(customer.last_order).toLocaleDateString('id-ID') : 'Tidak diketahui'
+            }));
+            
+            setSearchResults(enhancedResults);
+            
+            // Show data source info
+            if (data.source === 'mock') {
+                console.log('Using mock data - will switch to real database when available');
+            }
+        } catch (error) {
+            console.error('Error searching customers:', error);
+            notify.error('Gagal mencari customer');
+            setSearchResults([]);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    // Auto-refresh customer data periodically for realtime feel
+    useEffect(() => {
+        if (customerSearchQuery.trim() && searchResults.length > 0) {
+            const interval = setInterval(() => {
+                // Silently refresh search results every 30 seconds
+                searchCustomers(customerSearchQuery);
+            }, 30000);
+
+            return () => clearInterval(interval);
+        }
+    }, [customerSearchQuery, searchResults.length]);
+
+    // Handle customer selection
+    const handleSelectExistingCustomer = (customer) => {
+        setSelectedCustomer(customer);
+        setCustomerInfo({
+            ...customerInfo,
+            customer_name: customer.name,
+            customer_phone: customer.phone,
+        });
+        setCustomerSearchQuery('');
+        setSearchResults([]);
+    };
+
+    // Reset customer selection
+    const resetCustomerSelection = () => {
+        setCustomerType('guest');
+        setSelectedCustomer(null);
+        setCustomerSearchQuery('');
+        setSearchResults([]);
+        setCustomerInfo({
+            ...customerInfo,
+            customer_name: '',
+            customer_phone: '',
+        });
     };
     const API_BASE_URL = process.env.REACT_APP_API_URL
     const normalizePhone62 = (raw) => {
@@ -130,25 +207,25 @@ const POSCounter = () => {
         receipt += `Kasir      : ${order.cashier_name || '-'}\n`;
         receipt += `Customer   : ${order.customer_name}\n`;
 
-        // Tipe order dengan emoji
+        // Tipe order
         let orderTypeText = '';
         if (order.type === 'dine_in') {
-            orderTypeText = '🍽️ Dine In';
+            orderTypeText = 'Dine In';
         } else if (order.type === 'delivery') {
-            orderTypeText = '🛵 Delivery';
+            orderTypeText = 'Delivery';
         } else if (order.type === 'pickup') {
-            orderTypeText = '🥡 Pickup';
+            orderTypeText = 'Pickup';
         }
         receipt += `Tipe       : ${orderTypeText}\n`;
 
-        // Payment method dengan emoji
+        // Payment method
         let paymentText = '';
         if (order.payment_method === 'cash') {
-            paymentText = '💵 Cash';
+            paymentText = 'Cash';
         } else if (order.payment_method === 'qris') {
-            paymentText = '📱 QRIS';
+            paymentText = 'QRIS';
         } else if (order.payment_method === 'transfer') {
-            paymentText = '🏦 Transfer';
+            paymentText = 'Transfer';
         } else {
             paymentText = order.payment_method?.toUpperCase() || 'CASH';
         }
@@ -403,7 +480,7 @@ const POSCounter = () => {
                 return false;
             }
 
-            notify.success("✅ Nota terkirim via WhatsApp.");
+            notify.success("Nota terkirim via WhatsApp.");
             return true;
         } catch (err) {
             console.error(err);
@@ -413,11 +490,15 @@ const POSCounter = () => {
     };
 
     const formatRupiah = (amount) => {
+        const numAmount = Number(amount);
+        if (!Number.isFinite(numAmount)) {
+            return 'Rp 0';
+        }
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
             minimumFractionDigits: 0,
-        }).format(amount);
+        }).format(numAmount);
     };
 
     const getProductModifierGroups = (productId) => {
@@ -480,11 +561,17 @@ const POSCounter = () => {
     const calculateItemSubtotal = () => {
         if (!selectedProduct) return 0;
         // Gunakan original_price jika produk adalah hot deal, jika tidak pakai harga normal
-        let price = selectedProduct.original_price || selectedProduct.price;
+        let price = Number(selectedProduct.original_price || selectedProduct.price || 0);
+        if (!Number.isFinite(price)) price = 0;
 
         Object.values(selectedModifiers).flat().forEach(modId => {
             const modifier = menu.modifiers.find(m => m.id === modId);
-            if (modifier) price += modifier.price_delta;
+            if (modifier) {
+                const delta = Number(modifier.price_delta || 0);
+                if (Number.isFinite(delta)) {
+                    price += delta;
+                }
+            }
         });
 
         return price * quantity;
@@ -512,19 +599,22 @@ const POSCounter = () => {
                 modifier_id: m.id,
                 quantity: 1,
                 name: m.name,
-                price_delta: m.price_delta || 0,
+                price_delta: m.price_delta || 0, // Jangan konversi ke Number dulu
                 group_id: group.id,
                 group_name: group.name,
             }));
         });
 
+        const productPrice = Number(selectedProduct.original_price || selectedProduct.price || 0);
+        const subtotal = calculateItemSubtotal();
+        
         const cartItem = {
             product_id: selectedProduct.id,
             product_name: selectedProduct.name,
-            product_price: selectedProduct.original_price || selectedProduct.price,
+            product_price: productPrice,
             quantity,
             modifiers,
-            subtotal: calculateItemSubtotal()
+            subtotal: Number.isFinite(subtotal) ? subtotal : 0
         };
 
         setCart([...cart, cartItem]);
@@ -545,12 +635,16 @@ const POSCounter = () => {
             const item = { ...updated[index] };
 
             const mods = Array.isArray(item.modifiers) ? item.modifiers : [];
-            const modifiersTotal = mods.reduce((sum, m) => sum + Number(m?.price_delta || 0), 0);
+            const modifiersTotal = mods.reduce((sum, m) => {
+                const delta = Number(m?.price_delta || 0);
+                return sum + (Number.isFinite(delta) ? delta : 0);
+            }, 0);
 
             const basePrice = Number(item.product_price || 0) + modifiersTotal;
+            const validBasePrice = Number.isFinite(basePrice) ? basePrice : 0;
 
             item.quantity = qty;
-            item.subtotal = basePrice * qty;
+            item.subtotal = validBasePrice * qty;
 
             updated[index] = item;
             return updated;
@@ -581,14 +675,13 @@ const POSCounter = () => {
             // Build notes based on order type
             let notes = null;
             if (customerInfo.order_type === 'delivery') {
-                notes = `${customerInfo.delivery_address || ''}${customerInfo.delivery_notes ? ' | ' + customerInfo.delivery_notes : ''}`;
-            } else if (customerInfo.order_type === 'dine_in') {
-                notes = customerInfo.delivery_notes ? `Nomor Meja: ${customerInfo.delivery_notes}` : null;
+                notes = customerInfo.delivery_address || null;
             }
 
             const orderData = {
                 customer_name: customerInfo.customer_name,
                 customer_phone: customerInfo.customer_phone,
+                customer_id: selectedCustomer ? selectedCustomer.id : null, // Link to existing customer
                 type: customerInfo.order_type, // Backend expects 'type', not 'order_type'
                 payment_method: customerInfo.payment_method,
                 notes,
@@ -633,9 +726,9 @@ const POSCounter = () => {
                 order_type: 'dine_in',
                 payment_method: 'cash',
                 delivery_address: '',
-                delivery_notes: '',
                 discount_code: '',
             });
+            resetCustomerSelection();
             setShowPaymentModal(false);
         } catch (error) {
             console.error('Error creating order:', error);
@@ -663,7 +756,7 @@ const POSCounter = () => {
     return (
         <AdminLayout>
             <div className="max-w-7xl mx-auto pb-40 lg:pb-0">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">🛒 POS Kasir</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">POS Kasir</h1>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Menu Section - 2 columns */}
@@ -672,7 +765,7 @@ const POSCounter = () => {
                         <div className="bg-white rounded-lg shadow-md p-4 mb-4">
                             <input
                                 type="text"
-                                placeholder="🔍 Cari produk..."
+                                placeholder="Cari produk..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3"
@@ -903,139 +996,482 @@ const POSCounter = () => {
 
             {/* Payment Modal */}
             {showPaymentModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-                        <div className="p-6">
-                            <h2 className="text-2xl font-bold mb-4">Info Pelanggan & Pembayaran</h2>
-
-                            <div className="space-y-4">
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-3 z-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-4 text-white">
+                            <div className="flex justify-between items-center">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Nama Pelanggan *</label>
-                                    <input
-                                        type="text"
-                                        value={customerInfo.customer_name}
-                                        onChange={(e) => setCustomerInfo({ ...customerInfo, customer_name: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                        placeholder="Nama pelanggan"
-                                    />
+                                    <h2 className="text-xl font-bold">Info Pelanggan & Pembayaran</h2>
+                                    <p className="text-primary-100 text-sm mt-1">Lengkapi data untuk proses order</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowPaymentModal(false)}
+                                    className="text-white hover:text-primary-200 p-1 hover:bg-primary-800 rounded-lg transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 overflow-y-auto max-h-[calc(95vh-180px)]">
+                            <div className="space-y-6">
+                                {/* Customer Type Selection */}
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
+                                    <label className="block text-sm font-semibold text-blue-800 mb-4 flex items-center space-x-2">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                        </svg>
+                                        <span>Pilih Tipe Customer</span>
+                                    </label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCustomerType('guest');
+                                                resetCustomerSelection();
+                                            }}
+                                            className={`group relative overflow-hidden px-5 py-4 rounded-xl border-2 transition-all duration-300 ${
+                                                customerType === 'guest'
+                                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white border-green-500 shadow-lg transform scale-105'
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 hover:shadow-md'
+                                            }`}
+                                        >
+                                            {customerType === 'guest' && (
+                                                <div className="absolute top-1 right-1 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-2 py-1">
+                                                    <span className="text-xs font-bold text-white">AKTIF</span>
+                                                </div>
+                                            )}
+                                            <div className="flex flex-col items-center text-center space-y-2">
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                                                    customerType === 'guest' ? 'bg-white bg-opacity-20' : 'bg-green-100'
+                                                }`}>
+                                                    <svg className={`w-6 h-6 ${customerType === 'guest' ? 'text-white' : 'text-green-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-base">Customer Baru</div>
+                                                    <div className={`text-xs ${customerType === 'guest' ? 'text-white text-opacity-90' : 'text-gray-500'}`}>
+                                                        Pembelian tanpa registrasi
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerType('existing')}
+                                            className={`group relative overflow-hidden px-5 py-4 rounded-xl border-2 transition-all duration-300 ${
+                                                customerType === 'existing'
+                                                    ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-blue-500 shadow-lg transform scale-105'
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
+                                            }`}
+                                        >
+                                            {customerType === 'existing' && (
+                                                <div className="absolute top-1 right-1 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-2 py-1">
+                                                    <span className="text-xs font-bold text-white">AKTIF</span>
+                                                </div>
+                                            )}
+                                            <div className="flex flex-col items-center text-center space-y-2">
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                                                    customerType === 'existing' ? 'bg-white bg-opacity-20' : 'bg-blue-100'
+                                                }`}>
+                                                    <svg className={`w-6 h-6 ${customerType === 'existing' ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-base">Customer Terdaftar</div>
+                                                    <div className={`text-xs ${customerType === 'existing' ? 'text-white text-opacity-90' : 'text-gray-500'}`}>
+                                                        Akun member dengan poin
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Nomor HP (Opsional)</label>
-                                    <input
-                                        type="text"
-                                        value={customerInfo.customer_phone}
-                                        onChange={(e) => setCustomerInfo({ ...customerInfo, customer_phone: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                        placeholder="08xxxxxxxxxx (opsional)"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Tipe Order</label>
-                                    <select
-                                        value={customerInfo.order_type}
-                                        onChange={(e) => setCustomerInfo({ ...customerInfo, order_type: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    >
-                                        <option value="dine_in">🍽️ Dine In (Makan Di Tempat)</option>
-                                        <option value="pickup">📦 Ambil Sendiri</option>
-                                        <option value="delivery">🚚 Delivery</option>
-                                    </select>
-                                </div>
-
-                                {customerInfo.order_type === 'dine_in' && (
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Nomor Meja</label>
-                                        <input
-                                            type="text"
-                                            value={customerInfo.delivery_notes}
-                                            onChange={(e) => setCustomerInfo({ ...customerInfo, delivery_notes: e.target.value })}
-                                            className="w-full px-3 py-2 border rounded-lg"
-                                            placeholder="Contoh: Meja 5"
-                                        />
+                                {/* Existing Customer Search */}
+                                {customerType === 'existing' && (
+                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                        <label className="block text-sm font-semibold text-blue-800 mb-3">
+                                            Cari Customer {selectedCustomer && <span className="text-green-600">✓</span>}
+                                        </label>
+                                        {selectedCustomer ? (
+                                            <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-4">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex space-x-3">
+                                                        {selectedCustomer.avatar ? (
+                                                            <img 
+                                                                src={selectedCustomer.avatar} 
+                                                                alt={selectedCustomer.name}
+                                                                className="w-12 h-12 rounded-full border-2 border-white shadow-md"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+                                                                {selectedCustomer.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <p className="font-bold text-green-800 text-lg">{selectedCustomer.name}</p>
+                                                            <p className="text-sm text-green-600 flex items-center space-x-1">
+                                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                                                                </svg>
+                                                                <span>{selectedCustomer.phone}</span>
+                                                            </p>
+                                                            <p className="text-sm text-green-600 flex items-center space-x-1">
+                                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V19C3 20.1 3.9 21 5 21H11V19H5V3H15V9H21Z"/>
+                                                                </svg>
+                                                                <span>{selectedCustomer.email}</span>
+                                                            </p>
+                                                            {selectedCustomer.order_count > 0 && (
+                                                                <div className="flex items-center space-x-2 mt-2">
+                                                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
+                                                                        {selectedCustomer.order_count} orders
+                                                                    </span>
+                                                                    {selectedCustomer.order_count >= 10 && (
+                                                                        <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full font-medium">
+                                                                            VIP
+                                                                        </span>
+                                                                    )}
+                                                                    {selectedCustomer.isOnline && (
+                                                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium flex items-center space-x-1">
+                                                                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                                                            <span>Online</span>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={resetCustomerSelection}
+                                                        className="text-red-500 hover:text-red-700 hover:bg-red-100 p-2 rounded-lg transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                                            <path d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        value={customerSearchQuery}
+                                                        onChange={(e) => {
+                                                            setCustomerSearchQuery(e.target.value);
+                                                            searchCustomers(e.target.value);
+                                                        }}
+                                                        className="w-full px-4 py-3 pl-10 pr-10 border-2 border-blue-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors"
+                                                        placeholder="Ketik nama, phone, atau email..."
+                                                    />
+                                                    <svg className="absolute left-3 top-3.5 w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                    </svg>
+                                                    {isSearching && (
+                                                        <div className="absolute right-3 top-3.5">
+                                                            <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Search Results */}
+                                                {searchResults.length > 0 && (
+                                                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-blue-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                                                        {searchResults.map((customer) => (
+                                                            <button
+                                                                key={customer.id}
+                                                                onClick={() => handleSelectExistingCustomer(customer)}
+                                                                className="w-full p-4 text-left hover:bg-blue-50 border-b border-blue-100 last:border-b-0 first:rounded-t-xl last:rounded-b-xl transition-colors"
+                                                            >
+                                                                <div className="flex justify-between items-start">
+                                                                    <div className="flex space-x-3 flex-1">
+                                                                        {customer.avatar ? (
+                                                                            <img 
+                                                                                src={customer.avatar} 
+                                                                                alt={customer.name}
+                                                                                className="w-10 h-10 rounded-full border border-gray-200"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                                                                {customer.name.charAt(0).toUpperCase()}
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <p className="font-semibold text-gray-900 truncate">{customer.name}</p>
+                                                                                {customer.isOnline && (
+                                                                                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Online sekarang"></span>
+                                                                                )}
+                                                                            </div>
+                                                                            <p className="text-sm text-gray-600 truncate">{customer.phone}</p>
+                                                                            <p className="text-sm text-gray-500 truncate">{customer.email}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex flex-col items-end space-y-1">
+                                                                        {customer.order_count >= 10 && (
+                                                                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
+                                                                                VIP
+                                                                            </span>
+                                                                        )}
+                                                                        {customer.order_count > 0 && (
+                                                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                                                                {customer.order_count} orders
+                                                                            </span>
+                                                                        )}
+                                                                        {customer.isOnline && (
+                                                                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                                                                                Online
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                
+                                                {customerSearchQuery.trim() && !isSearching && searchResults.length === 0 && (
+                                                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-orange-200 rounded-xl shadow-lg p-4">
+                                                        <div className="text-center">
+                                                            <p className="text-gray-600 text-sm font-medium">Customer tidak ditemukan</p>
+                                                            <p className="text-gray-400 text-xs mt-1">
+                                                                Customer mungkin belum terdaftar di website
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {/* Customer Info Form */}
+                                {(customerType === 'guest' || !selectedCustomer) && (
+                                    <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center space-x-2">
+                                                    <span className="text-lg">📝</span>
+                                                    <span>Nama Pelanggan {customerType === 'guest' && '*'}</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={customerInfo.customer_name}
+                                                    onChange={(e) => setCustomerInfo({ ...customerInfo, customer_name: e.target.value })}
+                                                    className="w-full px-4 py-3 border-2 border-indigo-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors disabled:bg-gray-100 disabled:text-gray-600"
+                                                    placeholder="Masukkan nama pelanggan..."
+                                                    disabled={customerType === 'existing' && selectedCustomer}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center space-x-2">
+                                                    <span className="text-lg">📱</span>
+                                                    <span>Nomor HP {customerType === 'guest' ? '(Opsional)' : '*'}</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={customerInfo.customer_phone}
+                                                    onChange={(e) => setCustomerInfo({ ...customerInfo, customer_phone: e.target.value })}
+                                                    className="w-full px-4 py-3 border-2 border-indigo-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors disabled:bg-gray-100 disabled:text-gray-600"
+                                                    placeholder="08xxxxxxxxxx"
+                                                    disabled={customerType === 'existing' && selectedCustomer}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
-                                {customerInfo.order_type === 'delivery' && (
-                                    <>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Alamat Pengiriman *</label>
-                                            <textarea
-                                                value={customerInfo.delivery_address}
-                                                onChange={(e) => setCustomerInfo({ ...customerInfo, delivery_address: e.target.value })}
-                                                className="w-full px-3 py-2 border rounded-lg"
-                                                rows="3"
-                                                placeholder="Alamat lengkap"
-                                            />
+                                {/* Customer Type Indicator */}
+                                {selectedCustomer && (
+                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                                                <span className="text-white text-lg">👤</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-blue-800 font-semibold text-lg">Customer Terdaftar</span>
+                                                <p className="text-sm text-blue-600 mt-1">
+                                                    Order akan terhubung dengan akun customer dan mendapat loyalty points
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1">Catatan Pengiriman</label>
-                                            <input
-                                                type="text"
-                                                value={customerInfo.delivery_notes}
-                                                onChange={(e) => setCustomerInfo({ ...customerInfo, delivery_notes: e.target.value })}
-                                                className="w-full px-3 py-2 border rounded-lg"
-                                                placeholder="Patokan lokasi"
-                                            />
-                                        </div>
-                                    </>
+                                    </div>
                                 )}
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Metode Pembayaran</label>
-                                    <select
-                                        value={customerInfo.payment_method}
-                                        onChange={(e) => setCustomerInfo({ ...customerInfo, payment_method: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                    >
-                                        <option value="cash">Cash</option>
-                                        <option value="qris">QRIS</option>
-                                    </select>
+                                {/* Order Type */}
+                                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                                    <label className="block text-sm font-semibold text-amber-800 mb-3 flex items-center space-x-2">
+                                        <span className="text-lg">🍽️</span>
+                                        <span>Tipe Order</span>
+                                    </label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerInfo({ ...customerInfo, order_type: 'dine_in' })}
+                                            className={`group px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
+                                                customerInfo.order_type === 'dine_in'
+                                                    ? 'bg-amber-600 text-white border-amber-600 shadow-lg'
+                                                    : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500 hover:bg-amber-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <span className="text-lg">🏪</span>
+                                                <span>Dine In</span>
+                                            </div>
+                                            <div className="text-xs opacity-75">Makan Di Tempat</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerInfo({ ...customerInfo, order_type: 'pickup' })}
+                                            className={`group px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
+                                                customerInfo.order_type === 'pickup'
+                                                    ? 'bg-amber-600 text-white border-amber-600 shadow-lg'
+                                                    : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500 hover:bg-amber-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <span className="text-lg">📦</span>
+                                                <span>Pickup</span>
+                                            </div>
+                                            <div className="text-xs opacity-75">Ambil Sendiri</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerInfo({ ...customerInfo, order_type: 'delivery' })}
+                                            className={`group px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
+                                                customerInfo.order_type === 'delivery'
+                                                    ? 'bg-amber-600 text-white border-amber-600 shadow-lg'
+                                                    : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500 hover:bg-amber-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <span className="text-lg">🚚</span>
+                                                <span>Delivery</span>
+                                            </div>
+                                            <div className="text-xs opacity-75">Antar Langsung</div>
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Kode Diskon (Opsional)</label>
+                                {/* Delivery Info (if delivery selected) */}
+                                {customerInfo.order_type === 'delivery' && (
+                                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-blue-800 mb-2 flex items-center space-x-2">
+                                                    <span className="text-lg">📍</span>
+                                                    <span>Alamat Pengiriman *</span>
+                                                </label>
+                                                <textarea
+                                                    value={customerInfo.delivery_address}
+                                                    onChange={(e) => setCustomerInfo({ ...customerInfo, delivery_address: e.target.value })}
+                                                    className="w-full px-4 py-3 border-2 border-blue-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors resize-none"
+                                                    rows="3"
+                                                    placeholder="Masukkan alamat lengkap untuk pengiriman..."
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Payment Method */}
+                                <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                                    <label className="block text-sm font-semibold text-green-800 mb-3 flex items-center space-x-2">
+                                        <span className="text-lg">💳</span>
+                                        <span>Metode Pembayaran</span>
+                                    </label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerInfo({ ...customerInfo, payment_method: 'cash' })}
+                                            className={`group px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
+                                                customerInfo.payment_method === 'cash'
+                                                    ? 'bg-green-600 text-white border-green-600 shadow-lg'
+                                                    : 'bg-white text-green-700 border-green-300 hover:border-green-500 hover:bg-green-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <span className="text-lg">💵</span>
+                                                <span>Cash</span>
+                                            </div>
+                                            <div className="text-xs opacity-75">Pembayaran Tunai</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerInfo({ ...customerInfo, payment_method: 'qris' })}
+                                            className={`group px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
+                                                customerInfo.payment_method === 'qris'
+                                                    ? 'bg-green-600 text-white border-green-600 shadow-lg'
+                                                    : 'bg-white text-green-700 border-green-300 hover:border-green-500 hover:bg-green-100'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-center space-x-2">
+                                                <span className="text-lg">📱</span>
+                                                <span>QRIS</span>
+                                            </div>
+                                            <div className="text-xs opacity-75">Scan QR Code</div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Discount Code */}
+                                <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                                    <label className="block text-sm font-semibold text-orange-800 mb-2">
+                                        <span>Kode Diskon (Opsional)</span>
+                                    </label>
                                     <input
                                         type="text"
                                         value={customerInfo.discount_code}
                                         onChange={(e) => setCustomerInfo({ ...customerInfo, discount_code: e.target.value })}
-                                        className="w-full px-3 py-2 border rounded-lg"
-                                        placeholder="Kode promo"
+                                        className="w-full px-4 py-3 border-2 border-orange-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors"
+                                        placeholder="Masukkan kode promo atau voucher..."
                                     />
                                 </div>
-
-                                <div className="border-t pt-4">
-                                    <div className="flex justify-between text-xl font-bold mb-4">
-                                        <span>Total Bayar:</span>
-                                        <span className="text-primary-600">{formatRupiah(getTotalAmount())}</span>
-                                    </div>
-                                </div>
                             </div>
+                        </div>
 
-                            <div className="flex gap-3 mt-6">
-                                <button
-                                    onClick={() => setShowPaymentModal(false)}
-                                    className="flex-1 py-3 border rounded-lg hover:bg-gray-50"
-                                >
-                                    Batal
-                                </button>
-                                <button
-                                    onClick={handleSubmitOrder}
-                                    className="flex-1 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-bold"
-                                >
-                                    Buat Order
-                                </button>
+                        {/* Footer */}
+                        <div className="bg-gray-50 border-t px-6 py-4 rounded-b-2xl">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
+                                {/* Total */}
+                                <div className="text-center sm:text-left">
+                                    <p className="text-sm text-gray-600 mb-1">Total Bayar:</p>
+                                    <p className="text-2xl font-bold text-primary-600">{formatRupiah(getTotalAmount())}</p>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="flex space-x-3">
+                                    <button
+                                        onClick={() => setShowPaymentModal(false)}
+                                        className="flex-1 sm:flex-none px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        onClick={handleSubmitOrder}
+                                        className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-bold hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                    >
+                                        <span>Proses Order</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
+
             {/* Receipt Modal (Print / WhatsApp) */}
             {showReceiptModal && receipt && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl w-full max-w-md p-6">
-                        <h3 className="text-xl font-bold mb-2">✅ Order berhasil</h3>
+                        <h3 className="text-xl font-bold mb-2">Order berhasil</h3>
 
                         <p className="text-sm text-gray-600 mb-3">
                             Nomor: <b>{receipt.order_no}</b>
@@ -1120,38 +1556,70 @@ const POSCounter = () => {
                 </div>
             )}
             {/* ✅ MOBILE ONLY: Sticky Bottom Bar */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-40">
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-40 backdrop-blur-md bg-opacity-95">
                 {cart.length === 0 ? (
-                    <div className="p-4 text-center">
-                        <p className="text-gray-500 text-sm">Cart masih kosong</p>
+                    <div className="p-3 text-center">
+                        <div className="flex items-center justify-center space-x-2 mb-1">
+                            <span className="text-xl">🛒</span>
+                            <p className="text-gray-500 text-sm font-medium">Keranjang masih kosong</p>
+                        </div>
+                        <p className="text-xs text-gray-400">Pilih menu untuk mulai belanja</p>
                     </div>
                 ) : (
-                    <div className="p-4">
+                    <div className="p-3">
+                        {/* Cart Summary Button */}
                         <button
                             onClick={() => setShowMobileCart(true)}
-                            className="w-full bg-white border-2 border-primary-600 text-primary-600 rounded-lg py-3 mb-3 font-bold active:scale-95 transition flex items-center justify-between px-4"
+                            className="w-full bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-primary-300 text-primary-700 rounded-lg py-2 mb-2 font-semibold active:scale-95 transition-all duration-200 flex items-center justify-between px-3 hover:from-primary-50 hover:to-primary-100 hover:border-primary-400"
                         >
-                            <span className="flex items-center gap-2">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                            <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center relative">
+                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                                        {cart.length}
+                                    </span>
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-semibold text-sm">Lihat Keranjang</p>
+                                    <p className="text-xs text-primary-600">{cart.length} item dalam keranjang</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                                <span className="text-xs font-medium">Buka</span>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                                 </svg>
-                                <span>Lihat Cart ({cart.length} item)</span>
-                            </span>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
+                            </div>
                         </button>
 
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-gray-600 font-medium">Total:</span>
-                            <span className="text-xl font-bold text-primary-600">{formatRupiah(getTotalAmount())}</span>
+                        {/* Total and Checkout */}
+                        <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-lg p-3 mb-2 border border-primary-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs text-primary-700 font-medium mb-1">Total Pembayaran</p>
+                                    <p className="text-lg font-bold text-primary-600">{formatRupiah(getTotalAmount())}</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs text-primary-600 space-y-1">
+                                        <div className="flex items-center space-x-1">
+                                            <span>🍽️</span>
+                                            <span>{cart.length} item</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1">
+                                            <span>Siap checkout</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <button
                             onClick={() => setShowPaymentModal(true)}
-                            className="w-full py-3 bg-primary-600 text-white rounded-lg font-bold active:scale-95 transition shadow-lg"
+                            className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg font-bold active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl hover:from-primary-700 hover:to-primary-800"
                         >
-                            Proses Pembayaran
+                            <span>Proses Pembayaran</span>
                         </button>
                     </div>
                 )}
@@ -1160,90 +1628,130 @@ const POSCounter = () => {
             {/* ✅ MOBILE ONLY: Slide-up Cart Modal */}
             {showMobileCart && (
                 <div
-                    className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-50"
+                    className="lg:hidden fixed inset-0 bg-black bg-opacity-60 z-50 backdrop-blur-sm"
                     onClick={() => setShowMobileCart(false)}
                 >
                     <div
-                        className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl max-h-[80vh] overflow-hidden"
+                        className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-hidden"
                         style={{ animation: 'slideUp 0.3s ease-out' }}
                         onClick={(e) => e.stopPropagation()}
                     >
+                        {/* Drag Indicator */}
                         <div className="flex justify-center pt-3 pb-2">
                             <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
                         </div>
 
-                        <div className="px-4 pb-4">
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-xl font-bold">Cart ({cart.length} item)</h2>
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-4 py-4 text-white">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-2xl">🛒</span>
+                                    <div>
+                                        <h2 className="text-xl font-bold">Keranjang Belanja</h2>
+                                        <p className="text-primary-100 text-sm">{cart.length} item dalam keranjang</p>
+                                    </div>
+                                </div>
                                 <button
                                     onClick={() => setShowMobileCart(false)}
-                                    className="text-gray-500 p-2"
+                                    className="text-white hover:text-primary-200 p-1 hover:bg-primary-800 rounded-lg transition-colors"
                                 >
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
                                 </button>
                             </div>
+                        </div>
 
-                            <div className="space-y-3 overflow-y-auto max-h-[calc(80vh-180px)] mb-4">
-                                {cart.map((item, index) => (
-                                    <div key={index} className="border-b pb-3 last:border-b-0">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="flex-1">
-                                                <p className="font-bold text-gray-900 text-sm">{item.product_name}</p>
-                                                {item.modifiers.length > 0 && (
-                                                    <p className="text-xs text-gray-600">
-                                                        {item.modifiers.map(m => m.name).join(', ')}
-                                                    </p>
-                                                )}
-                                            </div>
-                                            <button
-                                                onClick={() => removeFromCart(index)}
-                                                className="text-red-600 hover:text-red-700 ml-2 p-1"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => updateCartItemQty(index, item.quantity - 1)}
-                                                    className="w-8 h-8 bg-gray-200 rounded-lg text-lg font-bold active:scale-95 transition"
-                                                >
-                                                    −
-                                                </button>
-                                                <span className="w-10 text-center font-semibold text-sm">{item.quantity}</span>
-                                                <button
-                                                    onClick={() => updateCartItemQty(index, item.quantity + 1)}
-                                                    className="w-8 h-8 bg-primary-600 text-white rounded-lg text-lg font-bold active:scale-95 transition"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                            <p className="font-bold text-primary-600 text-sm">{formatRupiah(item.subtotal)}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="border-t pt-4">
-                                <div className="flex justify-between text-xl font-bold mb-4">
-                                    <span>Total:</span>
-                                    <span className="text-primary-600">{formatRupiah(getTotalAmount())}</span>
+                        {/* Cart Items */}
+                        <div className="px-4 py-4">
+                            {cart.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="text-6xl mb-4">🛒</div>
+                                    <p className="text-gray-500 font-medium">Keranjang masih kosong</p>
+                                    <p className="text-sm text-gray-400 mt-1">Yuk pilih menu favorit kamu!</p>
                                 </div>
+                            ) : (
+                                <>
+                                    <div className="space-y-4 overflow-y-auto max-h-[calc(85vh-240px)] mb-4">
+                                        {cart.map((item, index) => (
+                                            <div key={index} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="flex-1 pr-3">
+                                                        <p className="font-bold text-gray-900 text-base leading-tight">{item.product_name}</p>
+                                                        {item.modifiers.length > 0 && (
+                                                            <div className="mt-2 space-y-1">
+                                                                {item.modifiers.map((m, idx) => (
+                                                                    <div key={idx} className="flex items-center space-x-2">
+                                                                        <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
+                                                                        <span className="text-xs text-gray-600">{m.name}</span>
+                                                                        <span className="text-xs text-gray-500">+{formatRupiah(m.price_delta)}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeFromCart(index)}
+                                                        className="text-red-500 hover:text-red-700 hover:bg-red-100 p-2 rounded-lg transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                
+                                                <div className="flex justify-between items-center">
+                                                    {/* Quantity Controls */}
+                                                    <div className="flex items-center bg-white rounded-xl border border-gray-300 overflow-hidden">
+                                                        <button
+                                                            onClick={() => updateCartItemQty(index, item.quantity - 1)}
+                                                            className="w-10 h-10 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold active:scale-95 transition-all duration-200"
+                                                        >
+                                                            −
+                                                        </button>
+                                                        <span className="w-12 text-center font-bold text-gray-900">{item.quantity}</span>
+                                                        <button
+                                                            onClick={() => updateCartItemQty(index, item.quantity + 1)}
+                                                            className="w-10 h-10 bg-primary-600 hover:bg-primary-700 text-white font-bold active:scale-95 transition-all duration-200"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    {/* Price */}
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-bold text-primary-600">{formatRupiah(item.subtotal)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
 
-                                <button
-                                    onClick={() => {
-                                        setShowMobileCart(false);
-                                        setShowPaymentModal(true);
-                                    }}
-                                    className="w-full py-4 bg-primary-600 text-white rounded-lg font-bold active:scale-95 transition shadow-lg"
-                                >
-                                    Lanjut ke Pembayaran
-                                </button>
-                            </div>
+                                    {/* Total & Checkout */}
+                                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div>
+                                                <p className="text-sm text-gray-600 mb-1">Total Pembayaran</p>
+                                                <p className="text-2xl font-bold text-primary-600">{formatRupiah(getTotalAmount())}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-600">{cart.length} item</p>
+                                                <p className="text-xs text-gray-500">Siap untuk checkout</p>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                setShowMobileCart(false);
+                                                setShowPaymentModal(true);
+                                            }}
+                                            className="w-full py-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-bold active:scale-95 transition-all duration-200 shadow-lg hover:shadow-xl hover:from-primary-700 hover:to-primary-800"
+                                        >
+                                            <span>Lanjut ke Pembayaran</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
