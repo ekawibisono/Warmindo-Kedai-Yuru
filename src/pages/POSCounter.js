@@ -755,7 +755,7 @@ const POSCounter = () => {
 
     return (
         <AdminLayout>
-            <div className="max-w-7xl mx-auto pb-40 lg:pb-0">
+            <div className="max-w-7xl mx-auto pb-48 lg:pb-0">
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">POS Kasir</h1>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -796,7 +796,7 @@ const POSCounter = () => {
                         </div>
 
                         {/* Products Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-4 mb-4 lg:mb-0">
                             {filteredProducts.map(product => (
                                 <div
                                     key={product.id}
@@ -997,9 +997,9 @@ const POSCounter = () => {
             {/* Payment Modal */}
             {showPaymentModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-3 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] flex flex-col">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-4 text-white">
+                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-4 text-white rounded-t-2xl">
                             <div className="flex justify-between items-center">
                                 <div>
                                     <h2 className="text-xl font-bold">Info Pelanggan & Pembayaran</h2>
@@ -1016,8 +1016,9 @@ const POSCounter = () => {
                             </div>
                         </div>
 
-                        {/* Content */}
-                        <div className="p-6 overflow-y-auto max-h-[calc(95vh-180px)]">
+                        {/* Content - Scrollable */}
+                        <div className="flex-1 p-6 overflow-y-auto"
+                             style={{ maxHeight: 'calc(95vh - 200px)' }}>
                             <div className="space-y-6">
                                 {/* Customer Type Selection */}
                                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
@@ -1437,8 +1438,8 @@ const POSCounter = () => {
                             </div>
                         </div>
 
-                        {/* Footer */}
-                        <div className="bg-gray-50 border-t px-6 py-4 rounded-b-2xl">
+                        {/* Footer - Always Visible */}
+                        <div className="flex-shrink-0 bg-gray-50 border-t px-6 py-4 rounded-b-2xl">
                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
                                 {/* Total */}
                                 <div className="text-center sm:text-left">
@@ -1447,18 +1448,18 @@ const POSCounter = () => {
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex space-x-3">
+                                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
                                     <button
                                         onClick={() => setShowPaymentModal(false)}
-                                        className="flex-1 sm:flex-none px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                        className="w-full sm:w-auto px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
                                     >
                                         Batal
                                     </button>
                                     <button
                                         onClick={handleSubmitOrder}
-                                        className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-bold hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                        className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-bold hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                                     >
-                                        <span>Proses Order</span>
+                                        <span>🚀 Proses Order</span>
                                     </button>
                                 </div>
                             </div>
