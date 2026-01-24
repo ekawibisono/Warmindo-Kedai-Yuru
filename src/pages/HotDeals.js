@@ -57,7 +57,6 @@ const HotDeals = () => {
             setTiers(tiersRes.data || []);
             setStats(statsRes.data || null);
         } catch (error) {
-            console.error('Error fetching hot deals data:', error);
             notify.error('Gagal memuat data Hot Deals');
         } finally {
             setLoading(false);
@@ -80,7 +79,6 @@ const HotDeals = () => {
             setShowApplyModal(false);
             setSelectedProduct(null);
         } catch (error) {
-            console.error('Error applying hot deal:', error);
             notify.error('Gagal menerapkan Hot Deal');
         }
     };
@@ -100,7 +98,6 @@ const HotDeals = () => {
             fetchData();
             setRemoveDialog({ isOpen: false, productId: null, productName: '' });
         } catch (error) {
-            console.error('Error removing hot deal:', error);
             notify.error('Gagal menghapus Hot Deal');
         }
     };
@@ -136,7 +133,6 @@ const HotDeals = () => {
             
             fetchData();
         } catch (error) {
-            console.error('Error auto updating hot deals:', error);
             notify.error('Gagal update Hot Deals otomatis');
         } finally {
             setLoading(false);
@@ -191,7 +187,6 @@ const HotDeals = () => {
             fetchData();
             setShowTierModal(false);
         } catch (error) {
-            console.error('Error saving tier:', error);
             notify.error('Gagal menyimpan tier');
         }
     };
@@ -237,14 +232,12 @@ const HotDeals = () => {
                     notify.success('Semua Hot Deals telah dihapus karena tidak ada tier aktif');
                     await fetchData(); // Refresh again to show updated state
                 } catch (error) {
-                    console.error('Error auto updating after tier deletion:', error);
                     notify.warning('Tier dihapus, silakan klik "Update Otomatis" untuk menghapus Hot Deals yang tersisa');
                 }
             }
             
             setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '', warningMessage: '' });
         } catch (error) {
-            console.error('Error deleting tier:', error);
             notify.error('Gagal menghapus tier');
         }
     };

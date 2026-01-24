@@ -99,7 +99,7 @@ const AdminDashboard = () => {
       });
 
     } catch (error) {
-      console.error('Error fetching sales data:', error);
+      // Error fetching sales data
     }
   }, []);
 
@@ -126,7 +126,7 @@ const AdminDashboard = () => {
 
       setRecentOrders(sorted);
     } catch (error) {
-      console.error("Error fetching recent orders:", error);
+      // Error fetching recent orders
     }
   }, []);
 
@@ -163,7 +163,7 @@ const AdminDashboard = () => {
       await fetchRecentOrders();
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      // Error fetching dashboard data
     } finally {
       setLoading(false);
     }
@@ -193,7 +193,6 @@ const AdminDashboard = () => {
         minute: '2-digit'
       });
     } catch (error) {
-      console.error('Error formatting date:', error);
       return '-';
     }
   };

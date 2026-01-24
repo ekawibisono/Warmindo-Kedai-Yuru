@@ -24,7 +24,7 @@ export const CustomerAuthProvider = ({ children }) => {
       try {
         setCustomer(JSON.parse(customerData));
       } catch (error) {
-        console.error('Failed to parse customer data:', error);
+
         // Clear invalid data
         localStorage.removeItem('customer_token');
         localStorage.removeItem('customer_data');

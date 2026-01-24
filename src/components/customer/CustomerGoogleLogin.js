@@ -13,8 +13,6 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
       setError('');
 
       try {
-        console.log('🔐 Getting user info from Google...');
-        
         // Get user info from Google with the access token
         const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
           headers: {
@@ -23,8 +21,6 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
         });
         
         const userInfo = await userInfoResponse.json();
-        
-        console.log('📝 User info:', userInfo);
         
         // Send to backend with user info
         const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3000'}/auth/customer/google`, {
@@ -46,8 +42,6 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
           // Save customer session using context
           login(data.customer, data.token);
           
-          console.log('✅ Customer login successful:', data.customer.name);
-          
           if (onSuccess) {
             onSuccess(data.customer);
           }
@@ -56,7 +50,6 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
         }
 
       } catch (error) {
-        console.error('❌ Google login error:', error);
         setError('Gagal terhubung ke server. Silakan coba lagi.');
       } finally {
         setLoading(false);
@@ -75,7 +68,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold mb-1">
-                🍜 Kedai Yuru
+                Kedai Yuru
               </h2>
               <p className="text-orange-100 text-sm">Selamat datang kembali!</p>
             </div>
@@ -102,25 +95,21 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-green-50 rounded-lg p-3 border border-green-100">
                   <div className="flex items-center justify-center space-x-2">
-                    <span className="text-green-500">📝</span>
                     <span className="text-green-700 font-medium">Riwayat pesanan</span>
                   </div>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                   <div className="flex items-center justify-center space-x-2">
-                    <span className="text-blue-500">⚡</span>
                     <span className="text-blue-700 font-medium">Checkout cepat</span>
                   </div>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
                   <div className="flex items-center justify-center space-x-2">
-                    <span className="text-purple-500">🎁</span>
                     <span className="text-purple-700 font-medium">Reward & promo</span>
                   </div>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
                   <div className="flex items-center justify-center space-x-2">
-                    <span className="text-orange-500">🔔</span>
                     <span className="text-orange-700 font-medium">Notifikasi real-time</span>
                   </div>
                 </div>
@@ -131,7 +120,6 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
             {error && (
               <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 animate-in slide-in-from-top-2 duration-300">
                 <div className="flex items-center">
-                  <span className="text-red-500 mr-2">⚠️</span>
                   <p className="text-red-700 text-sm font-medium">{error}</p>
                 </div>
               </div>
@@ -185,7 +173,6 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
                 disabled={loading}
               >
                 <span className="inline-flex items-center justify-center space-x-2">
-                  <span className="text-lg group-hover:scale-110 transition-transform duration-300">🚶‍♂️</span>
                   <span>Lanjutkan sebagai Tamu</span>
                 </span>
               </button>
