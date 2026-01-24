@@ -31,7 +31,6 @@ const StaffManagement = () => {
             const res = await staffAPI.getStaffList();
             setStaffList(res.data.data || []);
         } catch (error) {
-            console.error(error);
             notify.error('Gagal memuat data staff');
         } finally {
             setLoading(false);

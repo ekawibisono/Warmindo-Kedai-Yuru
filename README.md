@@ -1,41 +1,54 @@
-# POS System Frontend
+# Kedai Yuru POS Frontend
 
-Frontend aplikasi Point of Sale (POS) dengan React dan TailwindCSS.
+Frontend aplikasi Point of Sale (POS) dan customer ordering Kedai Yuru, dibangun dengan React dan TailwindCSS.
 
 ## Features
 
 ### 🔐 Authentication
-- Login untuk Admin dan Kasir
-- Protected routes dengan role-based access control
+- Login untuk Admin dan Kasir (staff) dengan staff key
+- Login khusus Customer menggunakan Google (Google OAuth)
+- Protected routes dengan role-based access control (Admin / Kasir)
 
-### 👨‍💼 Admin Dashboard
-- **Dashboard**: Overview statistik sistem
+### 👨‍💼 Admin & Kasir
+- **Dashboard**: Overview statistik sistem dengan responsivitas mobile/tablet
 - **Kategori**: CRUD kategori produk
 - **Produk**: CRUD produk dengan image URL dan kategori
-- **Modifier Groups**: CRUD grup modifier (single/multi selection)
+- **Modifier Groups**: CRUD grup modifier (single/multi selection & required)
 - **Modifiers**: CRUD modifier dengan price delta
+- **Hot Deals Management**: Kelola produk hot deals dengan sistem tier otomatis berdasarkan jumlah terjual
 - **Kitchen Queue**: Monitor dan update status pesanan
-- **Verifikasi Pembayaran**: Review dan verifikasi pembayaran QRIS
+- **Verifikasi Pembayaran**: Review dan verifikasi pembayaran QRIS & POS
+- **Sales Report**: Laporan penjualan dengan filter dan export CSV
+- **Store Settings**: Atur jam buka/tutup otomatis & status order
+- **Discount Management**: Kelola diskon dan kode promo
+- **Staff Management**: Kelola akun staff & staff key
+- **WhatsApp Settings**: Konfigurasi notifikasi WhatsApp
 
-### 👤 Customer Interface
-- Browse menu produk
-- Pilih modifier untuk produk
-- Shopping cart functionality
-- Checkout (coming soon)
+### 👤 Customer Interface (Web Ordering)
+- Login dengan Google khusus untuk customer
+- Browse menu produk lengkap dengan kategori & hot deals
+- Pilih modifier (level pedas, topping, dll) dengan validasi grup wajib
+- Shopping cart dengan perhitungan otomatis harga + modifier
+- Checkout online dengan pilihan metode pembayaran (Cash / QRIS)
+- Riwayat pesanan per customer (berdasarkan akun Google)
+- Tracking pesanan publik dengan token (status real-time + auto-expiry)
+- Tombol "Lacak Pesanan" di riwayat hanya aktif untuk pesanan yang masih berjalan
 
 ## Tech Stack
 
 - **React** 18.2.0
 - **React Router** v6
-- **TailwindCSS** v3
+- **TailwindCSS** v3 (dengan responsive design untuk mobile/tablet)
 - **Axios** untuk API calls
+- **React App Rewired** untuk custom webpack configuration
+- **JavaScript Obfuscation** untuk production build security
 
 ## Installation
 
 ### 1. Clone dan Install Dependencies
 
 ```bash
-cd frontend-pos
+cd Warmindo-Kedai-Yuru
 npm install
 ```
 
@@ -61,102 +74,159 @@ npm start
 
 Aplikasi akan berjalan di `http://localhost:3000`
 
-## Default Login Credentials
+## Default Login (Dev)
 
-### Admin
-- **Username**: admin
-- **Password**: admin123
-- **Access**: Full admin dashboard
+> Catatan: Untuk production, gunakan staff key dari backend, jangan hardcode.
 
-### Kasir
-- **Username**: kasir
-- **Password**: kasir123
-- **Access**: Kitchen dan Payments
+### Admin / Kasir (via staff key)
+- Login menggunakan staff key yang dibuat dari modul Staff Management di backend.
+- Frontend menyimpan `staff_user` dan `staff_key` di localStorage.
+
+### Customer
+- Login menggunakan Google (button "Masuk dengan Google" di halaman Customer Menu).
+- Data customer dan token JWT disimpan di localStorage (`customer_data` dan `customer_token`).
 
 ## Project Structure
 
 ```
-frontend-pos/
+Warmindo-Kedai-Yuru/
 ├── public/
-│   └── index.html
+│   ├── index.html
+│   ├── manifest.json
+│   ├── robots.txt
+│   └── sitemap.xml
+├── scripts/
+│   └── generate-seo-files.js
 ├── src/
 │   ├── components/
 │   │   ├── admin/
-│   │   │   └── AdminLayout.js       # Admin sidebar layout
+│   │   │   ├── AdminLayout.js        # Admin sidebar layout (responsive)
+│   │   │   └── Receipt.js            # Receipt component
+│   │   ├── common/
+│   │   │   ├── ConfirmDialog.js      # Confirmation dialog component
+│   │   │   ├── Toast.js              # Toast notification system
+│   │   │   └── ui.js                 # UI utility components
+│   │   ├── customer/
+│   │   │   ├── Cart.js               # Keranjang customer
+│   │   │   └── Checkout.js           # Checkout online customer
 │   │   └── shared/
-│   │       └── ProtectedRoute.js    # Route protection
+│   │       └── ProtectedRoute.js     # Route protection (staff)
 │   ├── contexts/
-│   │   └── AuthContext.js           # Authentication context
+│   │   └── AuthContext.js            # Staff authentication context
 │   ├── pages/
-│   │   ├── Login.js                 # Login page
-│   │   ├── AdminDashboard.js        # Admin dashboard
-│   │   ├── Categories.js            # Category management
-│   │   ├── Products.js              # Product management
-│   │   ├── ModifierGroups.js        # Modifier group management
-│   │   ├── Modifiers.js             # Modifier management
-│   │   ├── Kitchen.js               # Kitchen queue
-│   │   ├── Payments.js              # Payment verification
-│   │   └── CustomerMenu.js          # Customer menu page
+│   │   ├── AdminDashboard.js         # Admin dashboard (mobile responsive)
+│   │   ├── Categories.js             # Category management
+│   │   ├── Products.js               # Product management
+│   │   ├── ModifierGroups.js         # Modifier group management
+│   │   ├── Modifiers.js              # Modifier management
+│   │   ├── HotDeals.js               # Hot Deals management (mobile responsive)
+│   │   ├── Kitchen.js                # Kitchen queue
+│   │   ├── Login.js                  # Staff login page
+│   │   ├── Orders.js                 # Order management
+│   │   ├── OrderTracking.js          # Halaman tracking pesanan publik
+│   │   ├── Payments.js               # Payment verification
+│   │   ├── POSCounter.js             # POS kasir (order langsung)
+│   │   ├── SalesReport.js            # Sales report dengan export CSV (mobile responsive)
+│   │   ├── StaffManagement.js        # Staff management
+│   │   ├── StoreSettings.js          # Store settings
+│   │   ├── CustomerMenu.js           # Customer menu & order page
+│   │   ├── Discounts.js              # Discount management
+│   │   └── WhatsAppSettings.js       # WhatsApp notification settings
 │   ├── services/
-│   │   └── api.js                   # API service layer
+│   │   └── api.js                    # API service layer (publicAPI & staffAPI)
 │   ├── App.js                       # Main app with routing
 │   ├── index.js                     # Entry point
 │   └── index.css                    # Tailwind CSS
 ├── .env.example
+├── .env.production
+├── config-overrides.js              # React App Rewired configuration
 ├── package.json
-├── tailwind.config.js
-└── postcss.config.js
+├── postcss.config.js
+└── tailwind.config.js
 ```
 
-## API Integration
+## API Integration (Ringkas)
 
-Aplikasi ini terintegrasi dengan backend API yang memiliki endpoint:
+Aplikasi ini terintegrasi dengan backend API dengan beberapa kelompok endpoint utama:
 
 ### Public API (Customer)
-- `GET /api/public/menu` - Get menu lengkap
-- `POST /api/public/orders` - Create order
-- `GET /api/public/orders/:orderNo` - Get order detail
-- `POST /api/public/orders/:orderNo/qris-proof` - Upload bukti bayar
+- `GET  /api/public/menu`                        - Ambil menu lengkap (produk, kategori, modifier, store settings)
+- `POST /api/public/orders`                      - Buat online order (pickup/delivery/dine_in)
+- `GET  /api/public/orders/:orderNo`            - Detail & tracking publik dengan token
+- `POST /api/public/orders/:orderNo/qris-proof` - Upload bukti bayar QRIS
+- `POST /api/public/discounts/validate`         - Validasi kode diskon
+
+### Customer Auth API
+- `POST /api/auth/customer/google`  - Login customer via Google
+- `GET  /api/auth/customer/profile` - Ambil profil customer (butuh JWT)
+- `GET  /api/auth/customer/orders`  - Riwayat pesanan customer (pagination)
+- `POST /api/auth/customer/logout`  - Logout customer (invalidate di client)
 
 ### Staff API (Admin/Kasir)
-- `POST /api/staff/pos/orders` - Create POS order
-- `GET /api/staff/kitchen/queue` - Get kitchen queue
-- `GET /api/staff/kitchen/orders/:orderId` - Get order detail
-- `PATCH /api/staff/kitchen/orders/:orderId/status` - Update status
-- `GET /api/staff/payments/pending` - Get pending payments
-- `POST /api/staff/payments/:paymentId/verify` - Verify payment
-- `GET /api/staff/catalog/categories` - List categories
-- `POST /api/staff/catalog/categories` - Create category
-- `PATCH /api/staff/catalog/categories/:id` - Update category
-- `DELETE /api/staff/catalog/categories/:id` - Delete category
-- Plus endpoints untuk products, modifier-groups, modifiers
+- `POST /api/staff/auth/verify`                    - Verifikasi staff key
+- `POST /api/staff/pos/orders`                     - Buat POS order (kasir)
+- `GET  /api/staff/kitchen/queue`                  - Antrian dapur
+- `GET  /api/staff/kitchen/orders/:orderId`        - Detail order di dapur
+- `PATCH /api/staff/kitchen/orders/:orderId/status`- Update status order
+- `GET  /api/staff/payments/pending`               - Payment pending
+- `POST /api/staff/payments/:paymentId/verify`     - Verifikasi pembayaran
+- `GET/POST/PATCH/DELETE /api/staff/catalog/...`   - CRUD kategori, produk, modifier groups, modifiers, mapping
+- `GET/PUT/PATCH /api/staff/settings`              - Store settings & auto-schedule
+- `GET/POST/PUT/DELETE /api/staff/discounts...`    - Manajemen diskon
+- `GET/POST/PATCH/DELETE /api/staff/hot-deals...`  - Manajemen hot deals & tier system
+- `GET/POST/PATCH/DELETE /api/staff/management...` - Manajemen staff & staff key
+- `GET  /api/staff/orders/all`                     - Semua pesanan untuk sales report
+- `GET  /api/staff/hot-deals/stats`                - Statistik hot deals
+- `POST /api/staff/hot-deals/auto-update`          - Update otomatis hot deals berdasarkan tier
 
 ## Build untuk Production
 
 ```bash
+# Development build
 npm run build
+
+# Production build dengan obfuscation
+npm run build1
 ```
 
 Files akan di-generate di folder `build/`
 
+## Mobile & Tablet Support
+
+Aplikasi ini telah dioptimasi untuk perangkat mobile dan tablet dengan:
+
+- **Responsive Design**: Semua halaman admin menggunakan breakpoints Tailwind yang optimal
+- **Mobile-First Approach**: Layout dirancang mulai dari mobile kemudian desktop
+- **Touch-Friendly Interface**: Button sizes dan spacing yang optimal untuk touch devices
+- **Dual View System**: Card view untuk mobile, table view untuk desktop pada data-heavy pages
+- **Adaptive Typography**: Text sizing yang menyesuaikan ukuran layar
+
+### Breakpoints:
+- **Mobile**: < 640px (sm)
+- **Tablet**: 640px - 1024px (sm - lg)
+- **Desktop**: ≥ 1024px (lg+)
+
 ## Notes
 
-- Authentication saat ini menggunakan mock authentication di frontend
-- Untuk production, implementasikan proper JWT authentication dengan backend
-- Image upload untuk produk menggunakan URL eksternal
-- Payment proof disimpan di backend dan diakses via file server
+- Staff authentication menggunakan staff key yang diverifikasi ke backend (bukan mock).
+- Customer authentication menggunakan Google OAuth + JWT (disimpan di localStorage).
+- Image produk saat ini menggunakan URL eksternal (belum ada upload dari frontend).
+- Bukti pembayaran QRIS dan receipt disimpan di backend dan diakses via file server.
+- Hot Deals system menggunakan tier otomatis berdasarkan jumlah produk terjual.
+- Sales Report mendukung export ke CSV dengan berbagai filter.
+- Semua halaman admin telah dioptimasi untuk mobile dan tablet responsiveness.
+- Production build menggunakan JavaScript obfuscation untuk keamanan.
 
 ## Future Enhancements
 
-- [ ] Proper JWT authentication
-- [ ] Image upload functionality untuk produk
-- [ ] Complete checkout flow untuk customer
-- [ ] Order tracking untuk customer
-- [ ] Real-time updates dengan WebSocket
-- [ ] Print receipt functionality
-- [ ] Report dan analytics
-- [ ] Multi-language support
+- [ ] Image upload functionality untuk produk dari frontend
+- [ ] Real-time notifications dengan WebSocket
+- [ ] Advanced analytics dashboard dengan charts
+- [ ] Multi-language support (ID/EN)
+- [ ] PWA offline mode untuk kasir
+- [ ] Dark mode theme
+- [ ] Advanced reporting dengan date range picker
 
 ## Support
 
-Untuk pertanyaan atau masalah, silakan buat issue di repository.
+Untuk pertanyaan atau masalah, silakan buat issue di repository atau hubungi pengembang internal Kedai Yuru.

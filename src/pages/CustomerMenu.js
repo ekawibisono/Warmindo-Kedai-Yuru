@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { publicAPI } from '../services/api';
+import { useCustomerAuth } from '../contexts/CustomerAuthContext';
 import Checkout from '../components/customer/Checkout';
 import Cart from '../components/customer/Cart';
+import CustomerGoogleLogin from '../components/customer/CustomerGoogleLogin';
+import Toast from '../components/common/Toast';
 
 const CustomerMenu = () => {
   // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
+  const { customer, logout, login, getToken } = useCustomerAuth();
+  
   const [menu, setMenu] = useState({
     products: [],
     categories: [],
@@ -24,6 +29,12 @@ const CustomerMenu = () => {
   const [quantity, setQuantity] = useState(1);
   const [showCart, setShowCart] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showOrderHistory, setShowOrderHistory] = useState(false); // NEW
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showMobileCustomerMenu, setShowMobileCustomerMenu] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isUpdatingPhone, setIsUpdatingPhone] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState(() => {
@@ -43,6 +54,13 @@ const CustomerMenu = () => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
 
+  // Set initial phone number when customer data changes
+  useEffect(() => {
+    if (customer && customer.phone) {
+      setPhoneNumber(customer.phone);
+    }
+  }, [customer]);
+
   const fetchMenu = async () => {
     try {
       const response = await publicAPI.getMenu();
@@ -55,9 +73,83 @@ const CustomerMenu = () => {
       });
     } catch (error) {
       console.error('Error fetching menu:', error);
-      alert('Gagal memuat menu');
+      Toast.error('❌ Gagal memuat menu. Silakan refresh halaman.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updatePhoneNumber = async () => {
+    if (!phoneNumber.trim()) {
+      Toast.warning('Nomor telepon tidak boleh kosong');
+      return;
+    }
+
+    // Validate phone number format
+    const phoneRegex = /^(\+62|62|0)[0-9]{9,12}$/;
+    if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
+      Toast.error('Format nomor telepon tidak valid. Contoh: 08123456789');
+      return;
+    }
+
+    setIsUpdatingPhone(true);
+    const loadingToast = Toast.loading('💾 Menyimpan perubahan nomor telepon...');
+    
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error('Token tidak ditemukan. Silakan login kembali.');
+      }
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/public/customer/profile/phone`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          phone: phoneNumber.replace(/\s/g, '')
+        })
+      });
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('Non-JSON response:', textResponse);
+        throw new Error('Server mengembalikan response yang tidak valid. Periksa koneksi atau hubungi admin.');
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Gagal mengupdate nomor telepon');
+      }
+      
+      // Update customer data in context
+      if (result.customer) {
+        login(result.customer, token);
+      }
+      
+      Toast.dismiss(loadingToast);
+      Toast.success('✅ Nomor telepon berhasil diperbarui!');
+      setShowProfileModal(false);
+      
+    } catch (error) {
+      console.error('Error updating phone:', error);
+      Toast.dismiss(loadingToast);
+      
+      if (error.message.includes('fetch')) {
+        Toast.error('❌ Gagal terhubung ke server. Pastikan koneksi internet stabil.');
+      } else {
+        Toast.error(`❌ ${error.message}` || 'Gagal mengupdate nomor telepon');
+      }
+    } finally {
+      setIsUpdatingPhone(false);
     }
   };
 
@@ -242,6 +334,19 @@ const CustomerMenu = () => {
     setCart([]);
     localStorage.removeItem('cart');
     setShowCheckout(false);
+
+    // Update local customer stats so header reflects new total orders immediately
+    if (customer) {
+      const updatedCustomer = {
+        ...customer,
+        total_orders: (customer.total_orders || 0) + 1,
+      };
+
+      const token = getToken && getToken();
+      if (login && token) {
+        login(updatedCustomer, token);
+      }
+    }
   };
 
   const formatRupiah = (number) => {
@@ -310,24 +415,188 @@ const CustomerMenu = () => {
                 </div>
               </div>
 
-              {/* Mobile Cart Button */}
-              <button
-                onClick={() => setShowCart(true)}
-                className="sm:hidden btn-primary flex items-center relative px-4 py-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-                    {cart.length}
-                  </span>
+              {/* Customer Auth & Mobile Cart */}
+              <div className="flex items-center space-x-1 sm:hidden relative">
+                {customer ? (
+                  <div className="flex items-center space-x-1">
+                    {/* Mobile Customer Avatar & Menu */}
+                    <button
+                      onClick={() => setShowMobileCustomerMenu(!showMobileCustomerMenu)}
+                      className="flex items-center space-x-2 bg-primary-50 hover:bg-primary-100 rounded-lg px-2 py-1 transition-colors"
+                      title="Menu Customer"
+                    >
+                      <img 
+                        src={customer.avatar || '/default-avatar.png'} 
+                        alt="Avatar"
+                        className="w-7 h-7 rounded-full border border-gray-300"
+                      />
+                      <span className="text-xs font-medium text-primary-700 max-w-16 truncate">
+                        {customer.name.split(' ')[0]}
+                      </span>
+                      <svg className={`w-3 h-3 text-primary-600 transition-transform ${showMobileCustomerMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {/* Mobile Customer Dropdown */}
+                    {showMobileCustomerMenu && (
+                      <>
+                        {/* Backdrop */}
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setShowMobileCustomerMenu(false)}
+                        />
+                        
+                        {/* Dropdown Menu */}
+                        <div className="absolute top-full right-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 z-50 w-48">
+                          <div className="p-3 border-b border-gray-100">
+                            <div className="flex items-center space-x-2">
+                              <img 
+                                src={customer.avatar || '/default-avatar.png'} 
+                                alt="Avatar"
+                                className="w-8 h-8 rounded-full border border-gray-300"
+                              />
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{customer.name}</p>
+                                <p className="text-xs text-gray-500">Member Customer</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="py-2">
+                            <button
+                              onClick={() => {
+                                setShowMobileCustomerMenu(false);
+                                setShowOrderHistory(true);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                              </svg>
+                              <span>Riwayat Pesanan</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                setShowMobileCustomerMenu(false);
+                                setShowProfileModal(true);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span>Edit Profile</span>
+                            </button>
+                            
+                            <div className="border-t border-gray-100 mt-2 pt-2">
+                              <button
+                                onClick={() => {
+                                  setShowMobileCustomerMenu(false);
+                                  logout();
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                <span>Keluar</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="text-xs bg-primary-600 text-white px-2 py-1 rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    Masuk
+                  </button>
                 )}
-              </button>
+                
+                <button
+                  onClick={() => setShowCart(true)}
+                  className="sm:hidden bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center relative px-3 py-1 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs font-bold">
+                      {cart.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Actions */}
             <div className="flex items-center space-x-2 sm:space-x-3">
+              {/* Customer Auth - Desktop & Tablet */}
+              <div className="hidden sm:block">
+                {customer ? (
+                  <div className="flex items-center space-x-2 lg:space-x-3">
+                    <div className="flex items-center space-x-2 bg-gray-50 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2">
+                      <img 
+                        src={customer.avatar || '/default-avatar.png'} 
+                        alt="Avatar"
+                        className="w-7 h-7 lg:w-8 lg:h-8 rounded-full border border-gray-300"
+                      />
+                      <div className="text-xs lg:text-sm">
+                        <p className="font-medium text-gray-700">{customer.name}</p>
+                        <p className="text-xs text-gray-500 hidden lg:block">Member Customer</p>
+                      </div>
+                    </div>
+                    
+                    {/* Order History Button */}
+                    <button
+                      onClick={() => setShowOrderHistory(true)}
+                      className="text-xs lg:text-sm text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2 flex items-center transition-colors"
+                      title="Riwayat Pesanan"
+                    >
+                      <svg className="w-3.5 h-3.5 lg:w-4 lg:h-4 mr-1 lg:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                      <span className="hidden md:inline">Riwayat</span>
+                    </button>
+
+                    {/* Profile Edit Button */}
+                    <button
+                      onClick={() => setShowProfileModal(true)}
+                      className="text-xs lg:text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2 flex items-center transition-colors"
+                      title="Edit Profile"
+                    >
+                      <svg className="w-3.5 h-3.5 lg:w-4 lg:h-4 mr-1 lg:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span className="hidden md:inline">Edit</span>
+                    </button>
+                    
+                    <button
+                      onClick={logout}
+                      className="text-gray-600 hover:text-gray-800 p-1 transition-colors"
+                      title="Keluar"
+                    >
+                      <svg className="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="bg-primary-600 text-white px-3 py-1.5 lg:px-4 lg:py-2 text-sm lg:text-base rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    <span className="hidden lg:inline">Masuk dengan Google</span>
+                    <span className="lg:hidden">Masuk</span>
+                  </button>
+                )}
+              </div>
+
               <a
                 href="/track"
                 className="flex-1 sm:flex-none text-center sm:text-left px-4 py-2 text-sm text-primary-600 hover:text-primary-700 font-medium bg-primary-50 hover:bg-primary-100 rounded-lg transition-colors flex items-center justify-center"
@@ -355,6 +624,25 @@ const CustomerMenu = () => {
               </button>
             </div>
           </div>
+
+          {/* Customer Welcome Message */}
+          {customer && (
+            <div className="mt-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white p-3 rounded-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                <p className="text-sm font-medium">
+                  👋 Selamat datang, {customer.name.split(' ')[0]}!
+                </p>
+                <div className="text-xs opacity-90">
+                  <span className="flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    {customer.total_orders || 0} pesanan
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Search Bar */}
           <div className="mt-3">
@@ -613,78 +901,159 @@ const CustomerMenu = () => {
 
       {/* Product Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative">
-            {/* Close Button - Always visible */}
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-end md:items-center justify-center p-0 md:p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-t-2xl md:rounded-2xl max-w-2xl w-full max-h-[90vh] md:max-h-[85vh] overflow-hidden relative shadow-2xl transform transition-all duration-300">
+            {/* Close Button - Enhanced */}
             <button
               onClick={() => setSelectedProduct(null)}
-              className="absolute top-4 right-4 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors z-10"
+              className="absolute top-3 right-3 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white hover:scale-110 transition-all duration-200 z-20"
             >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
 
             {/* Product Image */}
             {selectedProduct.image_url && (
-              <div className="relative h-56 sm:h-72 overflow-hidden rounded-t-3xl sm:rounded-t-2xl">
+              <div className="relative h-48 md:h-60 overflow-hidden rounded-t-2xl md:rounded-t-2xl">
                 <img
                   src={selectedProduct.image_url}
                   alt={selectedProduct.name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
+                {/* Floating product name on image */}
+                <div className="absolute bottom-3 left-3 right-14 text-white">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 pr-2">
+                      <h1 className="text-xl md:text-2xl font-bold drop-shadow-lg">{selectedProduct.name}</h1>
+                      {selectedProduct.is_hot_deal && (
+                        <div className="mt-2">
+                          <span className="inline-flex items-center gap-1.5 bg-red-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full animate-pulse shadow-lg">
+                            <span className="text-sm">🔥</span>
+                            <span>HOT DEAL - {selectedProduct.discount_percent}% OFF</span>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Sold Count - Always visible on mobile if product has sales */}
+                    {selectedProduct.total_sold > 0 && (
+                      <div className="md:hidden bg-black/40 backdrop-blur-sm rounded-lg px-2.5 py-2 flex-shrink-0">
+                        <div className="flex items-center space-x-1 text-white">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          <span className="text-xs font-bold">{selectedProduct.total_sold}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
-            <div className="p-6">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
-
-              {/* Hot Deal Badge in Modal */}
-              {selectedProduct.is_hot_deal && (
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-full animate-pulse">
-                    🔥 HOT DEAL - {selectedProduct.discount_percent}% OFF
-                  </span>
-                  {selectedProduct.original_price > 0 && (
-                    <span className="text-sm text-green-600 font-semibold">
-                      Hemat {formatRupiah(selectedProduct.original_price - selectedProduct.price)}
-                    </span>
+            {/* Header for products without image */}
+            {!selectedProduct.image_url && (
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-2xl md:rounded-t-2xl">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 pr-2">
+                    <h1 className="text-xl md:text-2xl font-bold">{selectedProduct.name}</h1>
+                    {selectedProduct.is_hot_deal && (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1.5 bg-red-600/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full animate-pulse shadow-lg">
+                          <span className="text-sm">🔥</span>
+                          <span>HOT DEAL - {selectedProduct.discount_percent}% OFF</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Sold Count - Always visible on mobile if product has sales */}
+                  {selectedProduct.total_sold > 0 && (
+                    <div className="md:hidden bg-white/25 backdrop-blur-sm rounded-lg px-2.5 py-2 flex-shrink-0">
+                      <div className="flex items-center space-x-1 text-white">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <span className="text-xs font-bold">{selectedProduct.total_sold}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Product Description */}
-              {selectedProduct.description && (
-                <p className="text-gray-600 text-sm sm:text-base leading-relaxed mb-4">
-                  {selectedProduct.description}
-                </p>
-              )}
-
-              {/* Price & Sold Count */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-baseline gap-3">
-                  <p className={`text-3xl font-bold ${selectedProduct.is_hot_deal ? 'text-red-600' : 'text-primary-600'}`}>
-                    {formatRupiah(selectedProduct.price)}
-                  </p>
-                  {/* Original Price (strikethrough) */}
-                  {selectedProduct.is_hot_deal && selectedProduct.original_price > 0 && (
-                    <p className="text-xl text-gray-400 line-through">
-                      {formatRupiah(selectedProduct.original_price)}
-                    </p>
-                  )}
-                </div>
-
-                {/* Total Sold Badge */}
-                {(selectedProduct.total_sold || 0) > 0 && (
-                  <div className="flex items-center gap-1.5 bg-orange-100 text-orange-700 px-3 py-1.5 rounded-full">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                    <span className="text-sm font-bold">{selectedProduct.total_sold} terjual</span>
+            {/* Scrollable Content Area */}
+            <div className="overflow-y-auto flex-1" style={{maxHeight: 'calc(90vh - 240px)'}}>
+              <div className="p-3 md:p-4 pb-32 md:pb-40">
+                {/* Savings highlight for hot deals */}
+                {selectedProduct.is_hot_deal && selectedProduct.original_price > 0 && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-3 mb-4">
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                        </svg>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-gray-700">Anda menghemat</p>
+                        <p className="text-lg font-bold text-green-600">
+                          {formatRupiah(selectedProduct.original_price - selectedProduct.price)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
+
+                {/* Product Description */}
+                {selectedProduct.description && (
+                  <div className="mb-4">
+                    <h3 className="text-base font-bold text-gray-900 mb-2 flex items-center space-x-2">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Deskripsi Produk</span>
+                    </h3>
+                    <p className="text-gray-600 text-sm leading-relaxed bg-gray-50 rounded-lg p-3">
+                      {selectedProduct.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Price & Stats Section */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 mb-4 border border-blue-100">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    {/* Price Section */}
+                    <div className="flex flex-col">
+                      <p className="text-xs font-medium text-gray-600 mb-1">Harga</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className={`text-2xl md:text-3xl font-bold ${selectedProduct.is_hot_deal ? 'text-red-600' : 'text-blue-600'}`}>
+                          {formatRupiah(selectedProduct.price)}
+                        </p>
+                        {/* Original Price (strikethrough) */}
+                        {selectedProduct.is_hot_deal && selectedProduct.original_price > 0 && (
+                          <p className="text-base text-gray-400 line-through">
+                            {formatRupiah(selectedProduct.original_price)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stats Section - Desktop only */}
+                    <div className="hidden md:flex items-center gap-2">
+                      {(selectedProduct.total_sold || 0) > 0 && (
+                        <div className="flex items-center gap-2 bg-white/70 backdrop-blur-sm text-orange-700 px-3 py-2 rounded-lg shadow-sm">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          <div>
+                            <p className="text-xs text-gray-600">Terjual</p>
+                            <p className="text-sm font-bold">{selectedProduct.total_sold}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
               {/* Modifiers (tanpa icon) */}
               {getProductModifierGroups(selectedProduct.id).map((group) => {
@@ -801,44 +1170,81 @@ const CustomerMenu = () => {
                 );
               })}
 
-              {/* Quantity Selector */}
-              <div className="mb-6">
-                <h3 className="font-bold text-lg text-gray-900 mb-3">Jumlah</h3>
-                <div className="flex items-center space-x-4">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-12 h-12 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold text-xl transition-colors"
-                  >
-                    −
-                  </button>
-                  <span className="text-2xl font-bold text-gray-900 min-w-[3rem] text-center">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="w-12 h-12 bg-primary-600 hover:bg-primary-700 rounded-full flex items-center justify-center text-white font-bold text-xl transition-colors"
-                  >
-                    +
-                  </button>
+                {/* Quantity Selector */}
+                <div className="mb-4">
+                  <h3 className="font-bold text-base text-gray-900 mb-3 flex items-center space-x-2">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                    </svg>
+                    <span>Jumlah Pesanan</span>
+                  </h3>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <div className="flex items-center justify-center space-x-4">
+                      <button
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        className="w-11 h-11 bg-white hover:bg-gray-100 border-2 border-gray-200 hover:border-gray-300 rounded-xl flex items-center justify-center text-gray-700 font-bold text-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                        disabled={quantity <= 1}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" />
+                        </svg>
+                      </button>
+                      
+                      <div className="bg-white rounded-lg px-4 py-2 border-2 border-blue-200">
+                        <span className="text-2xl font-bold text-blue-600 min-w-[3rem] text-center block">{quantity}</span>
+                      </div>
+                      
+                      <button
+                        onClick={() => setQuantity(quantity + 1)}
+                        className="w-11 h-11 bg-blue-600 hover:bg-blue-700 border-2 border-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Add to Cart Button - Inside scrollable content at bottom */}
-              <div className="pt-4 border-t">
+              </div>
+            </div>
+
+            {/* Sticky Add to Cart Footer */}
+            <div className="bg-white border-t border-gray-200 p-3 md:p-4 sticky bottom-0">
+              <div className="space-y-2">
+                {!canAddToCart() && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                    <p className="text-xs text-red-700 text-center font-medium flex items-center justify-center space-x-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.232 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      <span>Mohon Pilih Tanda Bintang Terlebih Dahulu</span>
+                    </p>
+                  </div>
+                )}
+                
                 <button
                   onClick={addToCart}
                   disabled={!canAddToCart()}
-                  className={`w-full py-4 text-lg font-bold shadow-xl flex items-center justify-between rounded-xl transition-all ${canAddToCart()
-                    ? 'btn-primary hover:scale-[1.02]'
+                  className={`w-full py-4 px-4 text-lg font-bold shadow-lg rounded-xl transition-all duration-200 ${canAddToCart()
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 hover:scale-[1.02] active:scale-[0.98]'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                 >
-                  <span>Tambah ke Cart</span>
-                  <span>{formatRupiah(calculateItemSubtotal())}</span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center space-x-3">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5.5M7 13v6a1 1 0 001 1h10a1 1 0 001-1v-6M17 13v6M9 13v6" />
+                      </svg>
+                      <span>Tambah ke Cart</span>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                      <span className="font-bold text-base">
+                        {formatRupiah(calculateItemSubtotal())}
+                      </span>
+                    </div>
+                  </div>
                 </button>
-                {!canAddToCart() && (
-                  <p className="text-xs text-red-500 text-center mt-2">
-                    * Mohon pilih modifier yang wajib dipilih
-                  </p>
-                )}
               </div>
             </div>
           </div>
@@ -894,6 +1300,480 @@ const CustomerMenu = () => {
           </div>
         </div>
       </footer>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <CustomerGoogleLogin 
+          onSuccess={(customerData) => {
+            setShowLoginModal(false);
+            // Customer data already handled by context
+          }}
+          onClose={() => setShowLoginModal(false)}
+        />
+      )}
+
+      {/* Order History Modal */}
+      {showOrderHistory && (
+        <OrderHistoryModal 
+          onClose={() => setShowOrderHistory(false)}
+        />
+      )}
+
+      {/* Profile Edit Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 text-white">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center space-x-2">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span>Edit Profile</span>
+                  </h2>
+                  <p className="text-blue-100 text-sm mt-1">Perbarui informasi akun Anda</p>
+                </div>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="text-white hover:text-blue-200 p-1.5 hover:bg-blue-800 rounded-lg transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {/* Current Profile Info */}
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-5 mb-6 border border-gray-200">
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <img 
+                      src={customer?.avatar || '/default-avatar.png'} 
+                      alt="Avatar"
+                      className="w-14 h-14 rounded-full border-3 border-white shadow-md"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-900 text-lg">{customer?.name}</p>
+                    <p className="text-sm text-gray-600 flex items-center mt-1">
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      {customer?.email}
+                    </p>
+                    <div className="flex items-center space-x-4 mt-2">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {customer?.total_orders || 0} pesanan
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        Member sejak {new Date(customer?.created_at).getFullYear()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Phone Number Form */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <span>Nomor Telepon</span>
+                  </label>
+                  
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-0 transition-colors text-gray-900 placeholder-gray-500"
+                    placeholder="Masukkan nomor telepon"
+                  />
+                </div>
+                
+                {/* Format Guidelines */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2">Format yang diterima:</h4>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li className="flex items-center">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                      08123456789 (format Indonesia)
+                    </li>
+                    <li className="flex items-center">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                      62812345789 (format internasional)
+                    </li>
+                    <li className="flex items-center">
+                      <span className="w-2 h-2 bg-blue-400 rounded-full mr-2"></span>
+                      +62812345789 (format lengkap)
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Current Phone Display */}
+                {customer?.phone && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Nomor saat ini:</h4>
+                    <p className="text-sm text-gray-900 font-mono">{customer.phone}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 border-t px-6 py-4 rounded-b-2xl">
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="flex-1 px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-100 hover:border-gray-400 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={updatePhoneNumber}
+                  disabled={isUpdatingPhone || !phoneNumber.trim()}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                >
+                  {isUpdatingPhone ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Simpan Perubahan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+  
+  // Hanya izinkan pelacakan untuk pesanan yang masih berjalan
+  const isTrackableStatus = (status) => {
+    const nonTrackable = [
+      'completed',
+      'delivered',
+      'picked_up',
+      'cancelled',
+      'rejected'
+    ];
+    return !nonTrackable.includes(status);
+  };
+
+// Order History Modal Component
+const OrderHistoryModal = ({ onClose }) => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    totalPages: 1,
+    total: 0,
+    hasMore: false
+  });
+
+  useEffect(() => {
+    fetchOrderHistory();
+  }, []);
+
+  const fetchOrderHistory = async (page = 1) => {
+    try {
+      setLoading(true);
+      const response = await publicAPI.getCustomerOrders(page, 5);
+
+      // Backend response shape: { success, data: { orders, pagination } }
+      const apiData = response?.data?.data || {};
+      const ordersFromApi = apiData.orders || [];
+      const paginationFromApi = apiData.pagination || {};
+
+      if (page === 1) {
+        setOrders(ordersFromApi);
+      } else {
+        setOrders(prev => [...prev, ...ordersFromApi]);
+      }
+
+      setPagination(prev => ({
+        ...prev,
+        ...paginationFromApi,
+      }));
+    } catch (error) {
+      console.error('Error fetching order history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMoreOrders = () => {
+    if (pagination.hasMore && !loading) {
+      fetchOrderHistory(pagination.page + 1);
+    }
+  };
+
+  const formatRupiah = (number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(number);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+      case 'delivered':
+      case 'picked_up':
+        return 'bg-green-100 text-green-800';
+      case 'preparing':
+      case 'ready':
+        return 'bg-blue-100 text-blue-800';
+      case 'pending':
+      case 'confirmed':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled':
+      case 'rejected':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status, type) => {
+    const statusMap = {
+      pending: 'Menunggu Konfirmasi',
+      confirmed: 'Dikonfirmasi',
+      preparing: 'Sedang Dimasak',
+      ready: 'Siap',
+      delivering: 'Dalam Pengiriman',
+      delivered: 'Terkirim',
+      picked_up: 'Sudah Diambil',
+      completed: 'Selesai',
+      cancelled: 'Dibatalkan',
+      rejected: 'Ditolak'
+    };
+    return statusMap[status] || status;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-end md:items-center justify-center z-50 p-0 md:p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] md:max-h-[85vh] overflow-hidden transform transition-all duration-300">
+        {/* Enhanced Header */}
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 md:p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 md:w-10 md:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg md:text-xl font-bold">Riwayat Pesanan</h2>
+                <p className="text-purple-100 text-xs md:text-sm mt-0.5">Total: {pagination.total} pesanan</p>
+              </div>
+            </div>
+            <button 
+              onClick={onClose} 
+              className="text-white hover:text-purple-200 p-1.5 hover:bg-purple-800/50 rounded-lg transition-all duration-200"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Enhanced Content */}
+        <div className="p-3 md:p-4 overflow-y-auto bg-gray-50" style={{maxHeight: 'calc(90vh - 120px)'}}>
+          {loading && orders.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <div className="animate-spin rounded-full h-6 w-6 border-3 border-purple-600 border-t-transparent"></div>
+              </div>
+              <p className="text-gray-600 font-medium text-sm">Memuat riwayat pesanan...</p>
+              <p className="text-gray-400 text-xs mt-1">Mohon tunggu sebentar</p>
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+              <h3 className="text-base font-semibold text-gray-700 mb-2">Belum ada riwayat pesanan</h3>
+              <p className="text-gray-500 mb-4 text-sm">Pesanan Anda akan muncul di sini setelah berbelanja</p>
+              <button 
+                onClick={onClose}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors text-sm"
+              >
+                Mulai Belanja
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((order) => (
+                <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden">
+                  {/* Order Header */}
+                  <div className="bg-gradient-to-r from-gray-50 to-white p-3 border-b border-gray-100">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <p className="font-bold text-base text-gray-900">{order.order_no}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
+                            {getStatusText(order.status, order.type)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 flex items-center space-x-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{formatDate(order.created_at)}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-600 mb-0.5">Total Pembayaran</p>
+                        <p className="text-lg font-bold text-purple-600">
+                          {formatRupiah(order.grand_total)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Order Content */}
+                  <div className="p-3">
+
+                    {/* Order Items */}
+                    <div className="space-y-3 mb-4">
+                      {order.items?.slice(0, 3).map((item, idx) => (
+                        <div key={idx} className="bg-gray-50 rounded-xl p-3">
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                  {item.qty}x
+                                </span>
+                                <span className="font-medium text-gray-900 text-sm">
+                                  {item.product_name_snapshot}
+                                </span>
+                              </div>
+                              {item.modifiers?.length > 0 && (
+                                <p className="text-xs text-gray-500 ml-8">
+                                  + {item.modifiers.map(m => m.modifier_name_snapshot).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                              {formatRupiah(item.subtotal)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {order.items?.length > 3 && (
+                        <div className="text-center">
+                          <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                            +{order.items.length - 3} item lainnya
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order Footer */}
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 pt-4 border-t border-gray-100">
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${order.type === 'delivery' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                            {order.type === 'delivery' ? (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="font-medium">
+                            {order.type === 'delivery' ? 'Delivery' : 'Pickup'}
+                          </span>
+                        </div>
+                        <div className="w-px h-4 bg-gray-300"></div>
+                        <span className="font-medium uppercase text-xs bg-gray-100 px-2 py-1 rounded-md">
+                          {order.payment_method}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        {order.public_tracking_token && isTrackableStatus(order.status) && (
+                          <a
+                            href={`/track?order=${order.order_no}&token=${order.public_tracking_token}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-200 transition-all duration-200 font-medium text-sm flex items-center space-x-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span>Lacak Pesanan</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Enhanced Load More Button */}
+              {pagination.hasMore && (
+                <div className="text-center pt-6">
+                  <button
+                    onClick={loadMoreOrders}
+                    disabled={loading}
+                    className="bg-white border-2 border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-700 px-8 py-4 rounded-2xl transition-all duration-200 disabled:opacity-50 font-medium shadow-sm hover:shadow-md"
+                  >
+                    {loading ? (
+                      <span className="flex items-center justify-center space-x-3">
+                        <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Memuat pesanan...</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center space-x-3">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span>Muat Lebih ({pagination.total - orders.length} tersisa)</span>
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

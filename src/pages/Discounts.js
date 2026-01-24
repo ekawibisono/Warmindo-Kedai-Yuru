@@ -58,7 +58,6 @@ const Discounts = () => {
             const response = await staffAPI.getDiscounts();
             setDiscounts(response.data.discounts || []);
         } catch (error) {
-            console.error('Error fetching discounts:', error);
             notify.error('Gagal memuat data diskon');
         } finally {
             setLoading(false);
@@ -73,9 +72,6 @@ const Discounts = () => {
                 staffAPI.getProducts(),
                 staffAPI.getCategories()
             ]);
-            
-            console.log('📦 Raw Products Response:', productsRes);
-            console.log('📁 Raw Categories Response:', categoriesRes);
             
             // Handle different response formats
             let loadedProducts = [];
@@ -98,21 +94,10 @@ const Discounts = () => {
                 loadedCategories = categoriesRes;
             }
             
-            console.log('✅ Parsed Products:', loadedProducts);
-            console.log('✅ Parsed Categories:', loadedCategories);
-            console.log(`📊 Total: ${loadedProducts.length} products, ${loadedCategories.length} categories`);
-            
             setProducts(loadedProducts);
             setCategories(loadedCategories);
             
-            if (loadedProducts.length === 0) {
-                console.warn('⚠️ No products found! Check API response format');
-            }
-            if (loadedCategories.length === 0) {
-                console.warn('⚠️ No categories found! Check API response format');
-            }
         } catch (error) {
-            console.error('❌ Error fetching products/categories:', error);
             notify.error('Gagal memuat data produk/kategori');
         } finally {
             setLoadingProducts(false);
@@ -211,8 +196,6 @@ const Discounts = () => {
             applies_to_category_ids: formData.discount_scope === 'category' ? formData.applies_to_category_ids : null
         };
 
-        console.log('📤 Sending payload:', payload);
-
         try {
             if (editingDiscount) {
                 await staffAPI.updateDiscount(editingDiscount.id, payload);
@@ -225,7 +208,6 @@ const Discounts = () => {
             resetForm();
             fetchDiscounts();
         } catch (error) {
-            console.error('❌ Error saving discount:', error.response?.data);
             notify.error(error.response?.data?.error || error.response?.data?.message || 'Gagal menyimpan diskon');
         }
     };
@@ -669,24 +651,6 @@ const Discounts = () => {
                                                 )}
                                             </div>
                                             
-                                            {/* Debug Info */}
-                                            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                                                <strong>Debug:</strong> {products.length} produk dimuat | 
-                                                Filtered: {filteredProducts.length} | 
-                                                Loading: {loadingProducts ? 'Ya' : 'Tidak'}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        console.log('🔍 Debug State:');
-                                                        console.log('Products:', products);
-                                                        console.log('Filtered Products:', filteredProducts);
-                                                        console.log('Loading:', loadingProducts);
-                                                    }}
-                                                    className="ml-2 text-blue-600 hover:underline"
-                                                >
-                                                    Log to Console
-                                                </button>
-                                            </div>
                                             
                                             {/* Search Box */}
                                             {products.length > 5 && (
@@ -793,24 +757,6 @@ const Discounts = () => {
                                                 )}
                                             </div>
                                             
-                                            {/* Debug Info */}
-                                            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                                                <strong>Debug:</strong> {categories.length} kategori dimuat | 
-                                                Filtered: {filteredCategories.length} | 
-                                                Loading: {loadingProducts ? 'Ya' : 'Tidak'}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        console.log('🔍 Debug State:');
-                                                        console.log('Categories:', categories);
-                                                        console.log('Filtered Categories:', filteredCategories);
-                                                        console.log('Loading:', loadingProducts);
-                                                    }}
-                                                    className="ml-2 text-blue-600 hover:underline"
-                                                >
-                                                    Log to Console
-                                                </button>
-                                            </div>
                                             
                                             {/* Search Box */}
                                             {categories.length > 5 && (

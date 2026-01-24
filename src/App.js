@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
+import { CustomerAuthProvider } from './contexts/CustomerAuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -24,16 +26,22 @@ import Discounts from './pages/Discounts';
 import HotDeals from './pages/HotDeals';
 import StaffManagement from './pages/StaffManagement';
 import POSCounter from './pages/POSCounter';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID || ''}>
+      <CustomerAuthProvider>
+        <AuthProvider>
+          <Router>
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/menu" element={<CustomerMenu />} />
           <Route path="/track" element={<OrderTracking />} />
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           
           {/* Admin Routes */}
           <Route
@@ -181,17 +189,25 @@ function App() {
           <Route path="*" element={<Navigate to="/menu" replace />} />
         </Routes>
         <ToastContainer
-          position="top-right"
+          position={window.innerWidth <= 768 ? "top-center" : "top-right"}
           autoClose={3000}
           hideProgressBar={false}
           newestOnTop={false}
           closeOnClick
           rtl={false}
-          pauseOnFocusLoss
+          pauseOnFocusLoss={window.innerWidth > 768}
+          pauseOnHover={window.innerWidth > 768}
+          draggable={window.innerWidth > 768}
           theme="light"
+          limit={window.innerWidth <= 768 ? 3 : 5}
+          style={{
+            fontSize: '14px'
+          }}
         />
       </Router>
     </AuthProvider>
+  </CustomerAuthProvider>
+  </GoogleOAuthProvider>
   );
 }
 

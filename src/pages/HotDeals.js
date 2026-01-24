@@ -38,6 +38,7 @@ const HotDeals = () => {
         isOpen: false,
         tierId: null,
         tierName: '',
+        warningMessage: '',
     });
 
     useEffect(() => {
@@ -56,7 +57,6 @@ const HotDeals = () => {
             setTiers(tiersRes.data || []);
             setStats(statsRes.data || null);
         } catch (error) {
-            console.error('Error fetching hot deals data:', error);
             notify.error('Gagal memuat data Hot Deals');
         } finally {
             setLoading(false);
@@ -79,7 +79,6 @@ const HotDeals = () => {
             setShowApplyModal(false);
             setSelectedProduct(null);
         } catch (error) {
-            console.error('Error applying hot deal:', error);
             notify.error('Gagal menerapkan Hot Deal');
         }
     };
@@ -99,19 +98,41 @@ const HotDeals = () => {
             fetchData();
             setRemoveDialog({ isOpen: false, productId: null, productName: '' });
         } catch (error) {
-            console.error('Error removing hot deal:', error);
             notify.error('Gagal menghapus Hot Deal');
         }
     };
 
     const handleAutoUpdate = async () => {
+        // Show confirmation dialog first
+        const activeTiers = tiers.filter(t => t.is_active);
+        
+        let confirmMessage;
+        if (activeTiers.length === 0) {
+            // No active tiers - will remove all hot deals
+            confirmMessage = `Tidak ada tier aktif. Sistem akan menghapus SEMUA Hot Deals yang ada.\n\nLanjutkan menghapus semua Hot Deals?`;
+        } else {
+            // Has active tiers - will apply them
+            confirmMessage = `Sistem akan otomatis menerapkan tier ke semua produk berdasarkan jumlah terjual:\n\n${activeTiers.map(t => 
+                `• ${t.tier_name}: ${t.min_sold}${t.max_sold ? `-${t.max_sold}` : '+'} terjual → ${t.discount_percent}% diskon`
+            ).join('\n')}\n\nLanjutkan?`;
+        }
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
         try {
             setLoading(true);
             const response = await staffAPI.updateHotDealsAuto();
-            notify.success(response.data.message || 'Hot Deals berhasil diupdate otomatis');
+            
+            if (activeTiers.length === 0) {
+                notify.success('Semua Hot Deals berhasil dihapus karena tidak ada tier aktif');
+            } else {
+                notify.success(response.data.message || 'Hot Deals berhasil diupdate otomatis berdasarkan tier');
+            }
+            
             fetchData();
         } catch (error) {
-            console.error('Error auto updating hot deals:', error);
             notify.error('Gagal update Hot Deals otomatis');
         } finally {
             setLoading(false);
@@ -166,16 +187,26 @@ const HotDeals = () => {
             fetchData();
             setShowTierModal(false);
         } catch (error) {
-            console.error('Error saving tier:', error);
             notify.error('Gagal menyimpan tier');
         }
     };
 
     const handleDeleteTier = (tier) => {
+        // Check if this will be the last active tier
+        const activeCount = tiers.filter(t => t.is_active && t.id !== tier.id).length;
+        const hasHotDeals = hotDealsProducts.length > 0;
+        
+        let warningMessage = `Apakah Anda yakin ingin menghapus tier "${tier.tier_name}"?`;
+        
+        if (activeCount === 0 && hasHotDeals) {
+            warningMessage += `\n\n⚠️ PERINGATAN: Ini adalah tier aktif terakhir dan masih ada ${hotDealsProducts.length} produk Hot Deals. Setelah tier dihapus, semua Hot Deals akan otomatis dihapus juga.`;
+        }
+
         setDeleteTierDialog({
             isOpen: true,
             tierId: tier.id,
             tierName: tier.tier_name,
+            warningMessage: warningMessage,
         });
     };
 
@@ -183,10 +214,30 @@ const HotDeals = () => {
         try {
             await staffAPI.deleteHotDealTier(deleteTierDialog.tierId);
             notify.success(`Tier "${deleteTierDialog.tierName}" berhasil dihapus`);
-            fetchData();
-            setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '' });
+            
+            // Refresh data terlebih dahulu untuk mendapatkan tier terbaru
+            await fetchData();
+            
+            // Check if there are any active tiers left after the deletion
+            const updatedTiersRes = await staffAPI.getHotDealTiers();
+            const activeTiers = (updatedTiersRes.data || []).filter(t => t.is_active);
+            
+            if (activeTiers.length === 0) {
+                // No active tiers left, automatically update hot deals to remove all
+                notify.info('Tidak ada tier aktif tersisa. Menghapus semua Hot Deals...');
+                
+                try {
+                    // Force update without tier validation
+                    await staffAPI.updateHotDealsAuto();
+                    notify.success('Semua Hot Deals telah dihapus karena tidak ada tier aktif');
+                    await fetchData(); // Refresh again to show updated state
+                } catch (error) {
+                    notify.warning('Tier dihapus, silakan klik "Update Otomatis" untuk menghapus Hot Deals yang tersisa');
+                }
+            }
+            
+            setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '', warningMessage: '' });
         } catch (error) {
-            console.error('Error deleting tier:', error);
             notify.error('Gagal menghapus tier');
         }
     };
@@ -218,34 +269,43 @@ const HotDeals = () => {
         <AdminLayout>
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                            🔥 Hot Deals Management
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+                    <div className="flex-1">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
+                            🔥 <span className="hidden sm:inline">Hot Deals Management</span>
+                            <span className="sm:hidden">Hot Deals</span>
                         </h1>
-                        <p className="text-gray-600 mt-2">
-                            Kelola produk Hot Deals dan pengaturan tier diskon otomatis
+                        <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
+                            <span className="hidden sm:inline">Kelola produk Hot Deals dan pengaturan tier diskon otomatis</span>
+                            <span className="sm:hidden">Kelola Hot Deals & tier</span>
                         </p>
                     </div>
-                    <button
-                        onClick={handleAutoUpdate}
-                        className="btn-secondary flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Update Otomatis
-                    </button>
+                    <div className="flex flex-col sm:flex-row lg:flex-col lg:items-end gap-3">
+                        <button
+                            onClick={handleAutoUpdate}
+                            className="btn-primary flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base"
+                            disabled={loading}
+                        >
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            {loading ? 'Memproses...' : 'Update Otomatis'}
+                        </button>
+                        <p className="text-xs text-gray-500 text-center sm:text-right lg:text-right max-w-sm">
+                            💡 <span className="hidden sm:inline">Klik untuk menerapkan tier secara otomatis ke semua produk berdasarkan jumlah terjual</span>
+                            <span className="sm:hidden">Auto-apply tier ke semua produk</span>
+                        </p>
+                    </div>
                 </div>
 
                 {/* Statistics Cards */}
                 {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                         <div className="card bg-gradient-to-br from-red-500 to-red-600 text-white">
                             <div className="flex items-start justify-between">
-                                <div>
+                                <div className="flex-1 min-w-0">
                                     <p className="text-red-100 text-sm">Total Hot Deals</p>
-                                    <h3 className="text-3xl font-bold mt-2">{stats.total_hot_deals}</h3>
+                                    <h3 className="text-2xl sm:text-3xl font-bold mt-2 break-words">{stats.total_hot_deals}</h3>
                                     <p className="text-red-100 text-xs mt-1">dari {stats.total_products} produk</p>
                                 </div>
                                 <div className="bg-white bg-opacity-20 p-3 rounded-lg">
@@ -256,9 +316,9 @@ const HotDeals = () => {
 
                         <div className="card bg-gradient-to-br from-orange-500 to-orange-600 text-white">
                             <div className="flex items-start justify-between">
-                                <div>
+                                <div className="flex-1 min-w-0">
                                     <p className="text-orange-100 text-sm">Rata-rata Diskon</p>
-                                    <h3 className="text-3xl font-bold mt-2">{stats.average_discount}%</h3>
+                                    <h3 className="text-2xl sm:text-3xl font-bold mt-2 break-words">{stats.average_discount}%</h3>
                                     <p className="text-orange-100 text-xs mt-1">persentase diskon</p>
                                 </div>
                                 <div className="bg-white bg-opacity-20 p-3 rounded-lg">
@@ -269,9 +329,9 @@ const HotDeals = () => {
 
                         <div className="card bg-gradient-to-br from-green-500 to-green-600 text-white">
                             <div className="flex items-start justify-between">
-                                <div>
+                                <div className="flex-1 min-w-0">
                                     <p className="text-green-100 text-sm">Total Terjual</p>
-                                    <h3 className="text-3xl font-bold mt-2">{stats.total_sold_hot_deals}</h3>
+                                    <h3 className="text-2xl sm:text-3xl font-bold mt-2 break-words">{stats.total_sold_hot_deals}</h3>
                                     <p className="text-green-100 text-xs mt-1">produk hot deals</p>
                                 </div>
                                 <div className="bg-white bg-opacity-20 p-3 rounded-lg">
@@ -284,9 +344,9 @@ const HotDeals = () => {
 
                         <div className="card bg-gradient-to-br from-blue-500 to-blue-600 text-white">
                             <div className="flex items-start justify-between">
-                                <div>
+                                <div className="flex-1 min-w-0">
                                     <p className="text-blue-100 text-sm">Total Hemat/Item</p>
-                                    <h3 className="text-2xl font-bold mt-2">{formatRupiah(stats.total_savings_per_item)}</h3>
+                                    <h3 className="text-lg sm:text-2xl font-bold mt-2 break-words">{formatRupiah(stats.total_savings_per_item)}</h3>
                                     <p className="text-blue-100 text-xs mt-1">per produk</p>
                                 </div>
                                 <div className="bg-white bg-opacity-20 p-3 rounded-lg">
@@ -300,25 +360,25 @@ const HotDeals = () => {
                 )}
 
                 {/* Tabs */}
-                <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
+                <div className="border-b border-gray-200 overflow-x-auto">
+                    <nav className="-mb-px flex space-x-4 sm:space-x-8 min-w-max">
                         <button
                             onClick={() => setActiveTab('products')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'products'
+                            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'products'
                                     ? 'border-primary-500 text-primary-600'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            📦 Produk Hot Deals
+                            📦 <span className="hidden sm:inline">Produk </span>Hot Deals
                         </button>
                         <button
                             onClick={() => setActiveTab('tiers')}
-                            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'tiers'
+                            className={`py-3 sm:py-4 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === 'tiers'
                                     ? 'border-primary-500 text-primary-600'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            ⚙️ Pengaturan Tier
+                            ⚙️ <span className="hidden sm:inline">Pengaturan </span>Tier
                         </button>
                     </nav>
                 </div>
@@ -326,17 +386,98 @@ const HotDeals = () => {
                 {/* Products Tab */}
                 {activeTab === 'products' && (
                     <div className="space-y-6">
+                        {/* Warning if no active tiers but hot deals exist */}
+                        {hotDealsProducts.length > 0 && tiers.filter(t => t.is_active).length === 0 && (
+                            <div className="card border-amber-200 bg-amber-50">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-medium text-amber-800 mb-1">
+                                            ⚠️ Peringatan: Tidak Ada Tier Aktif
+                                        </h3>
+                                        <p className="text-sm text-amber-700 mb-3">
+                                            Masih ada <strong>{hotDealsProducts.length} produk Hot Deals</strong> aktif, tapi tidak ada tier yang dikonfigurasi. 
+                                            Hot Deals ini tidak akan ter-update otomatis.
+                                        </p>
+                                        <button 
+                                            onClick={handleAutoUpdate}
+                                            className="btn-warning text-sm"
+                                        >
+                                            🔄 Update Sekarang untuk Menghapus Hot Deals
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Active Hot Deals */}
                         <div className="card">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold text-gray-900">
-                                    🔥 Produk Hot Deals Aktif ({hotDealsProducts.length})
+                                <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+                                    🔥 <span className="hidden sm:inline">Produk </span>Hot Deals Aktif ({hotDealsProducts.length})
                                 </h2>
                             </div>
 
                             {hotDealsProducts.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
+                                <>
+                                    {/* Mobile Card View */}
+                                    <div className="block lg:hidden space-y-4">
+                                        {hotDealsProducts.map((product) => (
+                                            <div key={product.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                                                <div className="flex items-start gap-3 mb-3">
+                                                    {product.image_url && (
+                                                        <img src={product.image_url} alt={product.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-semibold text-gray-900 text-sm truncate">{product.name}</h3>
+                                                        <p className="text-xs text-gray-500 mb-2">{product.category_name}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                                                {product.discount_percent}% OFF
+                                                            </span>
+                                                            <span className="text-xs text-gray-600">Terjual: {product.total_sold || 0}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+                                                    <div>
+                                                        <span className="text-gray-500">Harga Asli:</span>
+                                                        <div className="font-medium text-gray-500 line-through">
+                                                            {formatRupiah(product.original_price || 0)}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500">Harga Diskon:</span>
+                                                        <div className="font-bold text-red-600">
+                                                            {formatRupiah(product.price)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleApplyHotDeal(product)}
+                                                        className="flex-1 btn-secondary text-xs py-2"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRemoveHotDeal(product)}
+                                                        className="flex-1 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                                                    >
+                                                        Hapus
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    {/* Desktop Table View */}
+                                    <div className="hidden lg:block overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
@@ -396,8 +537,9 @@ const HotDeals = () => {
                                                 </tr>
                                             ))}
                                         </tbody>
-                                    </table>
-                                </div>
+                                        </table>
+                                    </div>
+                                </>
                             ) : (
                                 <div className="text-center py-12 text-gray-500">
                                     <div className="text-6xl mb-4">🔍</div>
@@ -409,14 +551,50 @@ const HotDeals = () => {
                         {/* Available Products */}
                         <div className="card">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-bold text-gray-900">
+                                <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                                     📦 Produk Tersedia ({nonHotDealsProducts.length})
                                 </h2>
                             </div>
 
                             {nonHotDealsProducts.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
+                                <>
+                                    {/* Mobile Card View */}
+                                    <div className="block lg:hidden space-y-3">
+                                        {nonHotDealsProducts.map((product) => (
+                                            <div key={product.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                                                <div className="flex items-start gap-3 mb-3">
+                                                    {product.image_url && (
+                                                        <img src={product.image_url} alt={product.name} className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="font-medium text-gray-900 text-sm truncate">{product.name}</h3>
+                                                        <p className="text-xs text-gray-500 mb-1">{product.category_name}</p>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-semibold text-gray-900 text-sm">{formatRupiah(product.price)}</span>
+                                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                                                product.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                            }`}>
+                                                                {product.is_active ? 'Aktif' : 'Nonaktif'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs text-gray-500">Terjual: {product.total_sold || 0}</span>
+                                                    <button
+                                                        onClick={() => handleApplyHotDeal(product)}
+                                                        className="btn-primary text-xs py-2 px-3"
+                                                    >
+                                                        + Hot Deal
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    {/* Desktop Table View */}
+                                    <div className="hidden lg:block overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
@@ -464,10 +642,11 @@ const HotDeals = () => {
                                             ))}
                                         </tbody>
                                     </table>
-                                </div>
+                                    </div>
+                                </>
                             ) : (
-                                <div className="text-center py-12 text-gray-500">
-                                    <p>Semua produk sudah menjadi Hot Deals!</p>
+                                <div className="text-center py-8 sm:py-12 text-gray-500">
+                                    <p className="text-sm sm:text-base">Semua produk sudah menjadi Hot Deals!</p>
                                 </div>
                             )}
                         </div>
@@ -477,21 +656,82 @@ const HotDeals = () => {
                 {/* Tiers Tab */}
                 {activeTab === 'tiers' && (
                     <div className="card">
-                        <div className="flex justify-between items-center mb-6">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900">Pengaturan Tier Diskon</h2>
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6">
+                            <div className="flex-1">
+                                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Pengaturan Tier Diskon</h2>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    Tier akan otomatis diterapkan berdasarkan jumlah produk terjual
+                                    <span className="hidden sm:inline">Setup tier diskon berdasarkan jumlah terjual, lalu klik "Update Otomatis" untuk menerapkan</span>
+                                    <span className="sm:hidden">Setup tier berdasarkan jumlah terjual</span>
                                 </p>
+                                {tiers.length > 0 && tiers.some(t => t.is_active) && (
+                                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex items-center gap-2 text-blue-800 text-sm">
+                                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="font-medium">Tier siap digunakan!</span>
+                                        </div>
+                                        <p className="text-blue-700 text-xs mt-1">
+                                            Klik tombol "Update Otomatis" di atas untuk menerapkan tier ke semua produk secara otomatis.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
-                            <button onClick={handleAddTier} className="btn-primary">
-                                + Tambah Tier
+                            <button onClick={handleAddTier} className="btn-primary text-sm sm:text-base whitespace-nowrap">
+                                + <span className="hidden sm:inline">Tambah </span>Tier
                             </button>
                         </div>
 
                         {tiers.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
+                            <>
+                                {/* Mobile Card View */}
+                                <div className="block lg:hidden space-y-4">
+                                    {tiers.map((tier) => (
+                                        <div key={tier.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h3 className="font-bold text-gray-900">{tier.tier_name}</h3>
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full mt-1 ${
+                                                        tier.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {tier.is_active ? 'Aktif' : 'Nonaktif'}
+                                                    </span>
+                                                </div>
+                                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                                                    {tier.discount_percent}%
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                                                <div>
+                                                    <span className="text-gray-500 text-xs">Min Terjual:</span>
+                                                    <div className="font-medium text-gray-900">{tier.min_sold}</div>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-500 text-xs">Max Terjual:</span>
+                                                    <div className="font-medium text-gray-900">{tier.max_sold || '∞'}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleEditTier(tier)}
+                                                    className="flex-1 btn-secondary text-xs py-2"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteTier(tier)}
+                                                    className="flex-1 bg-red-100 text-red-700 hover:bg-red-200 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                                                >
+                                                    Hapus
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                {/* Desktop Table View */}
+                                <div className="hidden lg:block overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
@@ -539,12 +779,45 @@ const HotDeals = () => {
                                         ))}
                                     </tbody>
                                 </table>
-                            </div>
+                                </div>
+                            </>
                         ) : (
-                            <div className="text-center py-12 text-gray-500">
-                                <div className="text-6xl mb-4">⚙️</div>
-                                <p>Belum ada tier yang dikonfigurasi</p>
-                                <button onClick={handleAddTier} className="mt-4 btn-primary">
+                            <div className="text-center py-8 sm:py-12 px-4">
+                                <div className="text-4xl sm:text-6xl mb-4">⚙️</div>
+                                <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Belum ada tier yang dikonfigurasi</h3>
+                                <p className="text-gray-600 text-sm sm:text-base mb-6 max-w-md mx-auto">
+                                    Setup tier untuk mengotomatisasi Hot Deals berdasarkan jumlah produk terjual
+                                </p>
+                                
+                                <div className="bg-gray-50 rounded-xl p-4 sm:p-6 mb-6 text-left max-w-lg mx-auto">
+                                    <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">📋 Cara Setup Tier Otomatis:</h4>
+                                    <ol className="text-xs sm:text-sm text-gray-600 space-y-2">
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">1.</span>
+                                            <span>Klik "Tambah Tier Pertama" di bawah</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">2.</span>
+                                            <span>Isi data tier (contoh: Bronze, min 10 terjual, diskon 5%)</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">3.</span>
+                                            <span>Pastikan tier "Aktif" ✅</span>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="text-blue-600 font-medium">4.</span>
+                                            <span><strong>Klik "Update Otomatis"</strong> untuk menerapkan ke semua produk</span>
+                                        </li>
+                                    </ol>
+                                    
+                                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                        <p className="text-green-800 text-xs">
+                                            💡 <strong>Hasil:</strong> Produk dengan jumlah terjual sesuai tier akan otomatis mendapat diskon tanpa perlu setting manual!
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <button onClick={handleAddTier} className="btn-primary">
                                     Tambah Tier Pertama
                                 </button>
                             </div>
@@ -555,7 +828,7 @@ const HotDeals = () => {
                 {/* Apply Hot Deal Modal */}
                 {showApplyModal && selectedProduct && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                        <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 mx-4">
                             <h3 className="text-2xl font-bold text-gray-900 mb-4">
                                 {selectedProduct.is_hot_deal ? 'Edit' : 'Tambah'} Hot Deal
                             </h3>
@@ -620,7 +893,7 @@ const HotDeals = () => {
                 {/* Tier Modal */}
                 {showTierModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                        <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 mx-4 max-h-[90vh] overflow-y-auto">
                             <h3 className="text-2xl font-bold text-gray-900 mb-4">
                                 {editingTier ? 'Edit' : 'Tambah'} Tier
                             </h3>
@@ -731,11 +1004,11 @@ const HotDeals = () => {
                 <ConfirmDialog
                     isOpen={deleteTierDialog.isOpen}
                     title="Hapus Tier?"
-                    message={`Apakah Anda yakin ingin menghapus tier "${deleteTierDialog.tierName}"?`}
+                    message={deleteTierDialog.warningMessage || `Apakah Anda yakin ingin menghapus tier "${deleteTierDialog.tierName}"?`}
                     confirmText="Hapus"
                     cancelText="Batal"
                     onConfirm={confirmDeleteTier}
-                    onClose={() => setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '' })}
+                    onClose={() => setDeleteTierDialog({ isOpen: false, tierId: null, tierName: '', warningMessage: '' })}
                     type="danger"
                 />
             </div>

@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { publicAPI } from '../../services/api';
+import { useCustomerAuth } from '../../contexts/CustomerAuthContext';
 
 // QRIS Payment Data from environment variable
 const QRIS_DATA = process.env.REACT_APP_QRIS_DATA || '';
 
 const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
   const navigate = useNavigate();
+  const { customer } = useCustomerAuth();
   const [step, setStep] = useState(1); // 1: Form, 2: Payment Method, 3: Upload Proof
   const [loading, setLoading] = useState(false);
   const [orderData, setOrderData] = useState(null);
@@ -18,6 +20,17 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     notes: '',
     delivery_address: '',
   });
+
+  // Pre-fill customer info if logged in
+  useEffect(() => {
+    if (customer) {
+      setCustomerInfo(prev => ({
+        ...prev,
+        customer_name: customer.name || '',
+        customer_phone: customer.phone || '',
+      }));
+    }
+  }, [customer]);
 
   // Default to pickup if delivery is disabled
   const [orderType, setOrderType] = useState(isDeliveryDisabled ? 'pickup' : 'pickup');
@@ -156,6 +169,8 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
       // Prepare order items
       const items = cart.map(item => ({
         product_id: item.product_id,
+        product_name: item.product_name,
+        price: item.price,
         qty: item.quantity,
         modifiers: item.modifiers.map(mod => ({
           modifier_id: mod.id,
@@ -166,6 +181,7 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
       const orderPayload = {
         type: orderType,
         payment_method: paymentMethod,
+        customer_id: customer?.id ? String(customer.id) : null, // Convert customer ID to string
         customer_name: customerInfo.customer_name,
         customer_phone: customerInfo.customer_phone,
         delivery_address: orderType === 'delivery' ? customerInfo.delivery_address : null,
