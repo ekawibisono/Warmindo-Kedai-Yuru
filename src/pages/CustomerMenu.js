@@ -357,6 +357,27 @@ const CustomerMenu = () => {
     }).format(number);
   };
 
+  const formatMemberSince = (dateString) => {
+    if (!dateString) return new Date().getFullYear(); // Default ke tahun sekarang jika tidak ada data
+    
+    try {
+      let date = new Date(dateString);
+      
+      // Jika parsing gagal, coba ekstrak tahun dari string
+      if (isNaN(date.getTime())) {
+        const yearMatch = dateString.toString().match(/(\d{4})/);
+        if (yearMatch) {
+          return parseInt(yearMatch[1]);
+        }
+        return new Date().getFullYear(); // Fallback ke tahun sekarang
+      }
+      
+      return date.getFullYear();
+    } catch (error) {
+      return new Date().getFullYear(); // Fallback ke tahun sekarang
+    }
+  };
+
   // Get hot deals products
   const hotDealsProducts = menu.products.filter(p => p.is_active && p.is_hot_deal);
 
@@ -1372,7 +1393,7 @@ const CustomerMenu = () => {
                         {customer?.total_orders || 0} pesanan
                       </span>
                       <span className="text-xs text-gray-500">
-                        Member sejak {new Date(customer?.created_at).getFullYear()}
+                        Member sejak {formatMemberSince(customer?.created_at)}
                       </span>
                     </div>
                   </div>
