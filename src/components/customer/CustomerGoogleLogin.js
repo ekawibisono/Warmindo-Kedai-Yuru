@@ -93,7 +93,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://api.ekadevmp.site/api'}/public/customer/profile/phone`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://api.kedaiyuru.click/api'}/public/customer/profile/phone`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
