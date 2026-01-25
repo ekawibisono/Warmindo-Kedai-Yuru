@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Cart = ({ cart, onClose, onRemoveItem, onUpdateQty, onCheckout }) => {
+const Cart = ({ cart, onClose, onRemove, onUpdateQty, onCheckout }) => {
   const formatRupiah = (number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -46,10 +46,10 @@ const Cart = ({ cart, onClose, onRemoveItem, onUpdateQty, onCheckout }) => {
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-900 text-lg">{item.product_name}</h3>
-                      <p className="text-primary-600 font-medium">{formatRupiah(item.price)}</p>
+                      <p className="text-primary-600 font-medium">{formatRupiah(item.base_price)}</p>
                     </div>
                     <button
-                      onClick={() => onRemoveItem(item.id)}
+                      onClick={() => onRemove(item.id)}
                       className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
                       title="Hapus dari cart"
                     >
@@ -66,8 +66,8 @@ const Cart = ({ cart, onClose, onRemoveItem, onUpdateQty, onCheckout }) => {
                       {item.modifiers.map((mod, midx) => (
                         <div key={midx} className="flex justify-between text-sm text-gray-700">
                           <span>• {mod.name}</span>
-                          {mod.price_delta > 0 && (
-                            <span className="text-primary-600">+{formatRupiah(mod.price_delta)}</span>
+                          {mod.price > 0 && (
+                            <span className="text-primary-600">+{formatRupiah(mod.price)}</span>
                           )}
                         </div>
                       ))}

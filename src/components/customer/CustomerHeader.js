@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useCustomer } from '../../hooks/useCustomer';
+import { useCustomerAuth } from '../../contexts/CustomerAuthContext';
 import CustomerGoogleLogin from './CustomerGoogleLogin';
 import CustomerProfileModal from './CustomerProfileModal';
 import OrderHistoryModal from './OrderHistoryModal';
@@ -14,7 +14,7 @@ const CustomerHeader = ({
   selectedCategory = 'all', 
   onCategoryChange = () => {} 
 }) => {
-  const { customer, handleLogout } = useCustomer();
+  const { customer, logout } = useCustomerAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
@@ -22,6 +22,10 @@ const CustomerHeader = ({
 
   const handleLoginSuccess = (customerData) => {
     setShowLoginModal(false);
+  };
+
+  const handleLogout = () => {
+    logout();
   };
 
   return (
@@ -276,7 +280,7 @@ const CustomerHeader = ({
             </div>
 
             {/* Category Filter */}
-            <div className="mt-3 overflow-x-auto">
+            <div className="mt-3 overflow-x-auto pb-2">
               <div className="flex space-x-2 min-w-max">
                 <button
                   onClick={() => onCategoryChange('all')}

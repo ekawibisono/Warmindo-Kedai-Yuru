@@ -619,7 +619,7 @@ const POSCounter = () => {
 
         setCart([...cart, cartItem]);
         setSelectedProduct(null);
-        notify.success(`${selectedProduct.name} ditambahkan ke cart`);
+        // notify.success(`${selectedProduct.name} ditambahkan ke cart`);
     };
 
     const removeFromCart = (index) => {

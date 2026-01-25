@@ -104,7 +104,7 @@ const CustomerMenu = () => {
     }
 
     if (!isProductAvailable(product)) {
-      alert('Maaf, produk ini sedang tidak tersedia.');
+      notify.warning('Maaf, produk ini sedang tidak tersedia.');
       return;
     }
 
@@ -173,7 +173,7 @@ const CustomerMenu = () => {
 
   const addToCart = () => {
     if (!canAddToCart()) {
-      alert('Mohon pilih modifier yang wajib dipilih');
+      notify.warning('Mohon pilih modifier yang wajib dipilih');
       return;
     }
 

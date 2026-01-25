@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
-import notify from '../components/common/Toast';
+import { notify } from '../components/common/Toast';
 
 const StoreSettings = () => {
     const [loading, setLoading] = useState(true);

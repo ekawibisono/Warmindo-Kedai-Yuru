@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
 import { publicAPI } from '../../services/api';
 import { useCustomerAuth } from '../../contexts/CustomerAuthContext';
-
-// QRIS Payment Data from environment variable
-const QRIS_DATA = process.env.REACT_APP_QRIS_DATA || '';
+import { notify } from '../../components/common/Toast';
 
 const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
   const navigate = useNavigate();
@@ -26,7 +23,7 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     if (customer) {
       setCustomerInfo(prev => ({
         ...prev,
-        customer_name: customer.name || '',
+        customer_name: customer.full_name || '',
         customer_phone: customer.phone || '',
       }));
     }
@@ -147,19 +144,19 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
   const handleCreateOrder = async () => {
     // FIX: Prevent QRIS for free orders
     if (isFreeOrder() && paymentMethod === 'qris') {
-      alert('❌ Pesanan gratis tidak dapat menggunakan QRIS.\nSilakan pilih metode Cash.');
+      notify.error('❌ Pesanan gratis tidak dapat menggunakan QRIS.\nSilakan pilih metode Cash.');
       return;
     }
 
     // Validation for delivery address
     if (orderType === 'delivery' && !customerInfo.delivery_address.trim()) {
-      alert('❌ Alamat lengkap wajib diisi untuk pesanan delivery.');
+      notify.error('❌ Alamat lengkap wajib diisi untuk pesanan delivery.');
       return;
     }
 
     // Prevent delivery for 100% discount orders
     if (orderType === 'delivery' && appliedDiscount && (appliedDiscount.discount_percentage === 100 || appliedDiscount.discount_amount >= getSubtotal())) {
-      alert('❌ Pesanan gratis harus menggunakan pickup. Delivery tidak tersedia untuk diskon 100%.');
+      notify.error('❌ Pesanan gratis harus menggunakan pickup. Delivery tidak tersedia untuk diskon 100%.');
       return;
     }
 
@@ -217,8 +214,7 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
         navigate(`/track?order=${orderNo}&token=${token}`);
       }
     } catch (error) {
-      console.error('❌ Error creating order:', error);
-      alert('Gagal membuat pesanan: ' + (error.response?.data?.error || error.message));
+      notify.error('Gagal membuat pesanan: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
@@ -234,12 +230,12 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
     ];
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (!allowedTypes.includes(file.type)) {
-      alert("File harus berupa JPG, PNG, atau PDF");
+      notify.error("File harus berupa JPG, PNG, atau PDF");
       e.target.value = "";
       return;
     }
     if (file.size > maxSize) {
-      alert("Ukuran file maksimal 5MB");
+      notify.error("Ukuran file maksimal 5MB");
       e.target.value = "";
       return;
     }
@@ -258,14 +254,14 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
 
   const handleUploadProof = async () => {
     if (!proofFile) {
-      alert('Silakan pilih file bukti pembayaran');
+      notify.warning('Silakan pilih file bukti pembayaran');
       return;
     }
 
     // FIX: Validate amount
     const totalAmount = getTotalAmount();
     if (totalAmount <= 0) {
-      alert('❌ Jumlah pembayaran tidak valid (Rp 0). Tidak dapat upload bukti QRIS.');
+      notify.error('❌ Jumlah pembayaran tidak valid (Rp 0). Tidak dapat upload bukti QRIS.');
       return;
     }
 
@@ -286,8 +282,8 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
       navigate(`/track?order=${orderNo}&token=${token}&uploaded=true`);
 
     } catch (error) {
-      console.error('❌ Error uploading proof:', error);
-      alert('Gagal upload bukti pembayaran: ' + (error.response?.data?.error || error.message));
+
+      notify.error('Gagal upload bukti pembayaran: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
@@ -700,13 +696,12 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
               <p className="text-gray-600 text-sm mb-3">Scan kode QR dengan aplikasi banking Anda</p>
               <p className="text-xl font-bold text-primary-600 mb-3">{formatRupiah(getTotalAmount())}</p>
 
-              {/* QR Code */}
+              {/* QRIS Image */}
               <div className="bg-white p-4 rounded-lg inline-block shadow-md mb-3">
-                <QRCodeSVG 
-                  value={QRIS_DATA}
-                  size={200}
-                  level="M"
-                  includeMargin={true}
+                <img 
+                  src="/QRIS.png" 
+                  alt="QRIS Kedai Yuru"
+                  className="w-60 h-auto mx-auto"
                 />
               </div>
               

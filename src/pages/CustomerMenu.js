@@ -5,12 +5,12 @@ import { useCustomerAuth } from '../contexts/CustomerAuthContext';
 import Checkout from '../components/customer/Checkout';
 import Cart from '../components/customer/Cart';
 import CustomerHeader from '../components/customer/CustomerHeader';
-import Toast from '../components/common/Toast';
+import Toast, { notify } from '../components/common/Toast';
 
 const CustomerMenu = () => {
   // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
-  const { customer, login } = useCustomerAuth();
+  const { customer, updateCustomer } = useCustomerAuth();
   
   const [menu, setMenu] = useState({
     products: [],
@@ -42,7 +42,7 @@ const CustomerMenu = () => {
 
   useEffect(() => {
     fetchMenu();
-  }, []);
+  }, []); // Only run once on mount
 
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
@@ -54,8 +54,7 @@ const CustomerMenu = () => {
       const response = await publicAPI.getMenu();
       setMenu(response.data);
     } catch (error) {
-      console.error('Error fetching menu:', error);
-      Toast.error('❌ Gagal memuat menu. Silakan refresh halaman.');
+      notify.error('❌ Gagal memuat menu. Silakan refresh halaman.');
     } finally {
       setLoading(false);
     }
@@ -93,7 +92,7 @@ const CustomerMenu = () => {
 
   const handleSelectProduct = (product) => {
     if (!isProductAvailable(product)) {
-      Toast.error('❌ Produk tidak tersedia saat ini');
+      notify.error('❌ Produk tidak tersedia saat ini');
       return;
     }
 
@@ -156,7 +155,7 @@ const CustomerMenu = () => {
 
   const addToCart = () => {
     if (!canAddToCart()) {
-      Toast.error('❌ Silakan pilih modifier yang wajib');
+      notify.error('❌ Silakan pilih modifier yang wajib');
       return;
     }
 
@@ -184,7 +183,6 @@ const CustomerMenu = () => {
     setSelectedModifiers({});
     setQuantity(1);
 
-    Toast.success(`✅ ${selectedProduct.name} berhasil ditambahkan ke keranjang`);
   };
 
   const removeFromCart = (itemId) => {
@@ -212,26 +210,37 @@ const CustomerMenu = () => {
 
   const handleOpenCheckout = () => {
     if (cart.length === 0) {
-      Toast.error('❌ Keranjang kosong');
+      notify.error('❌ Keranjang kosong');
       return;
     }
     setShowCheckout(true);
   };
 
   const handleCheckoutSuccess = (orderData) => {
+    // Clear cart immediately when order is successful
     setCart([]);
+    localStorage.setItem('cart', JSON.stringify([])); // Ensure localStorage is also cleared
     setShowCheckout(false);
 
     // Update local customer stats so header reflects new total orders immediately
     if (customer) {
-      login({ ...customer, total_orders: (customer.total_orders || 0) + 1 });
+      updateCustomer({ ...customer, total_orders: (customer.total_orders || 0) + 1 });
     }
+
+    // Show success notification
+    // notify.success('✅ Pesanan berhasil dibuat! Cart dikosongkan.');
 
     setTimeout(() => {
       if (orderData?.tracking_url) {
         window.open(orderData.tracking_url, '_blank');
       }
     }, 2000);
+  };
+
+  const handleBackToMenu = () => {
+    // Only close checkout modal, keep cart items intact
+    setShowCheckout(false);
+    // Do NOT clear cart when user cancels checkout
   };
 
   const formatRupiah = (number) => {
@@ -272,10 +281,6 @@ const CustomerMenu = () => {
   const activeCategories = menu.categories.filter(c =>
     menu.products.some(p => p.category_id === c.id)
   );
-
-  const handleBackToMenu = () => {
-    setShowCheckout(false);
-  };
 
   if (loading) {
     return (
@@ -386,7 +391,6 @@ const CustomerMenu = () => {
                         isAvailable ? 'group-hover:scale-105' : 'grayscale'
                       }`}
                       onError={(e) => {
-                        console.log('Image failed to load:', product.image_url);
                         e.target.style.display = 'none';
                         e.target.parentNode.querySelector('.image-placeholder').style.display = 'flex';
                       }}
@@ -636,7 +640,7 @@ const CustomerMenu = () => {
                 disabled={!canAddToCart()}
                 className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
               >
-                {canAddToCart() ? 'Tambahkan ke Keranjang' : 'Pilih modifier yang wajib'}
+                {canAddToCart() ? 'Tambahkan ke Keranjang' : 'Pilih tanda bintang yang wajib'}
               </button>
             </div>
           </div>

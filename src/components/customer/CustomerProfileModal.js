@@ -5,7 +5,7 @@ import { notify } from '../common/Toast';
 
 const CustomerProfileModal = ({ isOpen, onClose }) => {
   const { customer, refreshCustomer } = useCustomerAuth();
-  const [fullName, setFullName] = useState(customer?.full_name || customer?.name || '');
+  const [fullName, setFullName] = useState(customer?.full_name || '');
   const [phoneNumber, setPhoneNumber] = useState(customer?.phone || '');
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -42,7 +42,6 @@ const CustomerProfileModal = ({ isOpen, onClose }) => {
       await refreshCustomer();
       onClose();
     } catch (error) {
-      console.error('Error updating profile:', error);
       notify.error(error.response?.data?.error || 'Gagal memperbarui profil');
     } finally {
       setIsUpdating(false);
@@ -91,7 +90,7 @@ const CustomerProfileModal = ({ isOpen, onClose }) => {
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
               </div>
               <div className="flex-1">
-                <p className="font-bold text-gray-900 text-lg">{customer?.full_name || customer?.name}</p>
+                <p className="font-bold text-gray-900 text-lg">{customer?.full_name}</p>
                 <p className="text-sm text-gray-600 flex items-center mt-1">
                   <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 7.89a2 2 0 002.83 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />

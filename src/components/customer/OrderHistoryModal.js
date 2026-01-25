@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { publicAPI } from '../../services/api';
+import { useCustomerAuth } from '../../contexts/CustomerAuthContext';
 
 const OrderHistoryModal = ({ onClose }) => {
   const [orders, setOrders] = useState([]);
@@ -11,13 +12,19 @@ const OrderHistoryModal = ({ onClose }) => {
     hasMore: false
   });
 
-  useEffect(() => {
-    fetchOrderHistory();
-  }, []);
+  const { customer } = useCustomerAuth();
 
-  const fetchOrderHistory = async (page = 1) => {
+  const fetchOrderHistory = useCallback(async (page = 1) => {
     try {
       setLoading(true);
+
+      // Check if customer is logged in
+      if (!customer) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
       const response = await publicAPI.getCustomerOrders(page, 5);
 
       // Backend response shape: { success, data: { orders, pagination } }
@@ -36,11 +43,22 @@ const OrderHistoryModal = ({ onClose }) => {
         ...paginationFromApi,
       }));
     } catch (error) {
-      console.error('Error fetching order history:', error);
+      if (error.response?.status === 401) {
+        setOrders([]);
+      } else {
+        setOrders([]);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [customer]); // Add customer dependency
+
+  // Only fetch when modal opens and customer is available
+  useEffect(() => {
+    if (customer) {
+      fetchOrderHistory();
+    }
+  }, [customer, fetchOrderHistory]); // Add fetchOrderHistory dependency
 
   const loadMoreOrders = () => {
     if (pagination.hasMore && !loading) {
@@ -139,7 +157,7 @@ const OrderHistoryModal = ({ onClose }) => {
               className="text-white hover:text-purple-200 p-1.5 hover:bg-purple-800/50 rounded-lg transition-all duration-200"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>

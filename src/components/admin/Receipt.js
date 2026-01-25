@@ -1,5 +1,6 @@
 import React, { useRef, useState, useMemo } from "react";
 import axios from "axios";
+import { notify } from '../common/Toast';
 
 const Receipt = ({ order, items, onClose }) => {
     const receiptRef = useRef(null);
@@ -273,7 +274,7 @@ const Receipt = ({ order, items, onClose }) => {
             setShowPreview(true);
         } catch (error) {
             console.error("Error generating PDF:", error);
-            alert("❌ Gagal membuat PDF: " + (error?.message || String(error)));
+            notify.error("❌ Gagal membuat PDF: " + (error?.message || String(error)));
         } finally {
             setIsGenerating(false);
         }
@@ -282,7 +283,7 @@ const Receipt = ({ order, items, onClose }) => {
     // Preview PDF from backend as blob
     const previewPDFFromBackend = async () => {
         if (!backendPdfUrl) {
-            alert("PDF belum tersedia di server.");
+            notify.warning("PDF belum tersedia di server.");
             return;
         }
 
@@ -305,7 +306,7 @@ const Receipt = ({ order, items, onClose }) => {
 
             const newWindow = window.open(blobUrl, "_blank");
             if (!newWindow) {
-                alert("Pop-up diblokir! Silakan izinkan pop-up untuk preview PDF.");
+                notify.warning("Pop-up diblokir! Silakan izinkan pop-up untuk preview PDF.");
                 URL.revokeObjectURL(blobUrl);
                 return;
             }
@@ -315,13 +316,13 @@ const Receipt = ({ order, items, onClose }) => {
             console.error("Error loading PDF:", error);
             const toast = document.getElementById("pdf-loading-toast");
             if (toast) document.body.removeChild(toast);
-            alert("❌ Gagal memuat PDF: " + error.message);
+            notify.error("❌ Gagal memuat PDF: " + error.message);
         }
     };
 
     const previewPDF = () => {
         if (!pdfUrl && !backendPdfUrl) {
-            alert("⚠️ PDF belum tersedia. Silakan generate PDF terlebih dahulu.");
+            notify.warning("⚠️ PDF belum tersedia. Silakan generate PDF terlebih dahulu.");
             return;
         }
 
@@ -332,7 +333,7 @@ const Receipt = ({ order, items, onClose }) => {
 
         if (pdfUrl) {
             const newWindow = window.open(pdfUrl, "_blank");
-            if (!newWindow) alert("Pop-up diblokir! Silakan izinkan pop-up untuk preview PDF.");
+            if (!newWindow) notify.warning("Pop-up diblokir! Silakan izinkan pop-up untuk preview PDF.");
         } else if (backendPdfUrl) {
             previewPDFFromBackend();
         }
@@ -340,7 +341,7 @@ const Receipt = ({ order, items, onClose }) => {
 
     const downloadPDF = () => {
         if (!pdfUrl && !backendPdfUrl) {
-            alert("⚠️ PDF belum tersedia.");
+            notify.warning("⚠️ PDF belum tersedia.");
             return;
         }
 
