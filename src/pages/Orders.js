@@ -3,7 +3,7 @@ import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import Receipt from '../components/admin/Receipt';
-import notify from '../components/common/Toast';
+import { notify } from '../components/common/Toast';
 
 const Orders = () => {
     const [orders, setOrders] = useState([]);

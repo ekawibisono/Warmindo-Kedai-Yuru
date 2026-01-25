@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../components/admin/AdminLayout";
 import { staffAPI } from "../services/api";
 import ConfirmDialog from "../components/common/ConfirmDialog";
-import notify from "../components/common/Toast";
+import { notify } from '../components/common/Toast';
 
 const getNormalizedProofUrl = (payment) => {
   const origin = window.location.origin;

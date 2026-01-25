@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
+import { notify } from '../components/common/Toast';
 
 const SalesReport = () => {
     const [loading, setLoading] = useState(true);
@@ -51,7 +52,7 @@ const SalesReport = () => {
             setOrders(response.data.orders || []);
         } catch (error) {
             console.error('Error fetching orders:', error);
-            alert('Gagal memuat data pesanan');
+            notify.error('Gagal memuat data pesanan');
         } finally {
             setLoading(false);
         }
@@ -195,7 +196,7 @@ const SalesReport = () => {
 
     const exportToCSV = () => {
         if (filteredOrders.length === 0) {
-            alert('Tidak ada data untuk diexport');
+            notify.warning('Tidak ada data untuk diexport');
             return;
         }
 

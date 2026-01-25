@@ -1,4 +1,5 @@
-import { toast } from 'react-toastify';
+import React from 'react';
+import { toast, ToastContainer } from 'react-toastify';
 
 // Detect if device is mobile/tablet with more accurate detection
 const isMobile = () => {
@@ -22,9 +23,9 @@ const getPosition = () => {
     if (isMobile()) {
         return "top-center"; // Mobile: center top for better visibility
     } else if (isTablet()) {
-        return "top-right"; // Tablet: traditional top-right but with mobile styling
+        return "top-center"; // Tablet: traditional top-right but with mobile styling
     }
-    return "top-right"; // Desktop: traditional top-right
+    return "top-center"; // Desktop: traditional top-right
 };
 
 // Get responsive options based on device
@@ -151,4 +152,11 @@ if (typeof window !== 'undefined') {
     });
 }
 
-export default notify;
+// Toast React Component
+const Toast = () => {
+    const responsiveOptions = getResponsiveOptions();
+    return <ToastContainer {...responsiveOptions} />;
+};
+
+export { notify };
+export default Toast;

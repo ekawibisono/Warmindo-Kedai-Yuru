@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/admin/AdminLayout';
 import Receipt from '../components/admin/Receipt';
 import { publicAPI, staffAPI } from '../services/api';
-import notify from '../components/common/Toast';
+import { notify } from '../components/common/Toast';
 
 const POSCounter = () => {
     const [menu, setMenu] = useState({
@@ -619,7 +619,7 @@ const POSCounter = () => {
 
         setCart([...cart, cartItem]);
         setSelectedProduct(null);
-        notify.success(`${selectedProduct.name} ditambahkan ke cart`);
+        // notify.success(`${selectedProduct.name} ditambahkan ke cart`);
     };
 
     const removeFromCart = (index) => {
@@ -672,19 +672,14 @@ const POSCounter = () => {
         }
 
         try {
-            // Build notes based on order type
-            let notes = null;
-            if (customerInfo.order_type === 'delivery') {
-                notes = customerInfo.delivery_address || null;
-            }
-
             const orderData = {
                 customer_name: customerInfo.customer_name,
                 customer_phone: customerInfo.customer_phone,
                 customer_id: selectedCustomer ? selectedCustomer.id : null, // Link to existing customer
                 type: customerInfo.order_type, // Backend expects 'type', not 'order_type'
                 payment_method: customerInfo.payment_method,
-                notes,
+                delivery_address: customerInfo.delivery_address || null, // ✅ Send delivery_address as separate field
+                notes: null, // Keep notes separate from delivery address
                 discount_code: customerInfo.discount_code || null,
                 items: cart.map(item => ({
                     product_id: item.product_id,
@@ -705,7 +700,8 @@ const POSCounter = () => {
                 customer_phone: customerInfo.customer_phone,
                 type: customerInfo.order_type,
                 payment_method: customerInfo.payment_method,
-                notes,
+                delivery_address: customerInfo.delivery_address || null,
+                notes: null,
                 items: cart,
                 grand_total: created.grand_total ?? getTotalAmount(),
             });
@@ -742,6 +738,7 @@ const POSCounter = () => {
         const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesCategory && matchesSearch;
     });
+    const cartTotal = getTotalAmount();
 
     if (loading) {
         return (
@@ -755,39 +752,106 @@ const POSCounter = () => {
 
     return (
         <AdminLayout>
-            <div className="max-w-7xl mx-auto pb-48 lg:pb-0">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">POS Kasir</h1>
+            <div className="max-w-7xl mx-auto space-y-6 pb-48 lg:pb-0">
+                <section className="bg-gradient-to-br from-primary-600 via-primary-500 to-primary-700 text-white rounded-3xl shadow-2xl p-4 sm:p-8">
+                    <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
+                        <div className="flex-1">
+                            <p className="text-xs uppercase tracking-[0.35em] text-white/70 mb-2">POS Counter</p>
+                            <h1 className="text-2xl sm:text-3xl font-bold">Kasir Kedai Yuru</h1>
+                            <p className="sm:text-base text-white/80 mt-2 max-w-2xl hidden sm:block">
+                                Kelola pesanan dine-in, pickup, dan delivery dengan tampilan yang nyaman di mobile, tablet, maupun desktop.
+                            </p>
+                            <p className="text-xs text-white/80 mt-2 sm:hidden">
+                                Layout cepat untuk buat order dine-in, pickup, atau delivery.
+                            </p>
+                            <div className="mt-4 flex flex-wrap gap-3 lg:hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowMobileCart(true)}
+                                    className="flex-1 min-w-[140px] bg-white/10 border border-white/30 backdrop-blur rounded-2xl px-4 py-3 text-sm font-semibold tracking-wide hover:bg-white/20 transition-colors"
+                                >
+                                    Keranjang ({cart.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => cart.length > 0 && setShowPaymentModal(true)}
+                                    className="flex-1 min-w-[140px] bg-white text-primary-700 rounded-2xl px-4 py-3 text-sm font-bold shadow-lg hover:bg-primary-50 transition-colors disabled:opacity-60"
+                                    disabled={cart.length === 0}
+                                >
+                                    Proses Pembayaran
+                                </button>
+                            </div>
+                        </div>
+                        <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 gap-3 lg:max-w-md">
+                            <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                                <p className="text-xs uppercase tracking-wide text-white/80 mb-1">Total Item</p>
+                                <p className="text-2xl font-semibold">{cart.length}</p>
+                                <p className="text-xs text-white/70 mt-1">Dalam keranjang</p>
+                            </div>
+                            <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                                <p className="text-xs uppercase tracking-wide text-white/80 mb-1">Nilai Transaksi</p>
+                                <p className="text-2xl font-semibold">{formatRupiah(cartTotal)}</p>
+                                <p className="text-xs text-white/70 mt-1">Realtime update</p>
+                            </div>
+                            <div className="bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur">
+                                <p className="text-xs uppercase tracking-wide text-white/80 mb-1">Mode Order</p>
+                                <p className="text-lg font-semibold capitalize">{customerInfo.order_type.replace('_', ' ')}</p>
+                                <p className="text-xs text-white/70 mt-1">Metode {customerInfo.payment_method}</p>
+                            </div>
+                        </div>
+                        <div className="sm:hidden grid grid-cols-2 gap-2">
+                            <div className="bg-white/10 border border-white/20 rounded-2xl p-3 text-center">
+                                <p className="text-[10px] uppercase tracking-wide text-white/70">Item</p>
+                                <p className="text-lg font-semibold">{cart.length}</p>
+                            </div>
+                            <div className="bg-white/10 border border-white/20 rounded-2xl p-3 text-center">
+                                <p className="text-[10px] uppercase tracking-wide text-white/70">Total</p>
+                                <p className="text-lg font-semibold">{formatRupiah(cartTotal)}</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Menu Section - 2 columns */}
-                    <div className="lg:col-span-2">
-                        {/* Search & Category Filter */}
-                        <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-                            <input
-                                type="text"
-                                placeholder="Cari produk..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-3"
-                            />
-                            <div className="flex gap-2 overflow-x-auto pb-2">
+                <section className="grid gap-6 items-start lg:grid-cols-[1.75fr,1fr]">
+                    <div className="space-y-5">
+                        <div className="bg-white border border-gray-100 rounded-3xl shadow-lg p-3 sm:p-6 space-y-3 sm:space-y-4">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Cari produk, kategori, atau catatan..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-11 pr-4 py-2.5 border-2 border-gray-100 rounded-2xl focus:border-primary-500 focus:ring-0 text-sm sm:text-base"
+                                    />
+                                    <svg className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                <div className="text-xs sm:text-sm text-gray-500">
+                                    <span className="font-semibold text-gray-900">{filteredProducts.length}</span> produk ditemukan
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 overflow-x-auto pb-1">
                                 <button
                                     onClick={() => setSelectedCategory('all')}
-                                    className={`px-4 py-2 rounded-full whitespace-nowrap ${selectedCategory === 'all'
-                                        ? 'bg-primary-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
+                                    className={`px-3 py-1.5 rounded-full border text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                                        selectedCategory === 'all'
+                                            ? 'bg-primary-600 text-white border-primary-600 shadow-md'
+                                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-primary-200'
+                                    }`}
                                 >
-                                    Semua
+                                    Semua Menu
                                 </button>
-                                {menu.categories.map(cat => (
+                                {menu.categories.map((cat) => (
                                     <button
                                         key={cat.id}
                                         onClick={() => setSelectedCategory(cat.id)}
-                                        className={`px-4 py-2 rounded-full whitespace-nowrap ${selectedCategory === cat.id
-                                            ? 'bg-primary-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                            }`}
+                                        className={`px-3 py-1.5 rounded-full border text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                                            selectedCategory === cat.id
+                                                ? 'bg-primary-100 text-primary-700 border-primary-300 shadow-sm'
+                                                : 'bg-white text-gray-700 border-gray-200 hover:border-primary-200'
+                                        }`}
                                     >
                                         {cat.name}
                                     </button>
@@ -795,96 +859,160 @@ const POSCounter = () => {
                             </div>
                         </div>
 
-                        {/* Products Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-4 mb-4 lg:mb-0">
-                            {filteredProducts.map(product => (
-                                <div
-                                    key={product.id}
-                                    onClick={() => handleSelectProduct(product)}
-                                    className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow"
-                                >
-                                    {product.image_url && (
-                                        <img
-                                            src={product.image_url}
-                                            alt={product.name}
-                                            className="w-full h-32 object-cover rounded-lg mb-3"
-                                        />
-                                    )}
-                                    <h3 className="font-bold text-gray-900 mb-1">{product.name}</h3>
-                                    <p className="text-primary-600 font-bold">
-                                        {formatRupiah(product.original_price || product.price)}
-                                    </p>
+                        <div className="grid gap-3 grid-cols-2 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
+                            {filteredProducts.length === 0 ? (
+                                <div className="col-span-full bg-white border border-dashed border-gray-300 rounded-3xl p-10 text-center shadow-sm">
+                                    <div className="text-4xl mb-3">😔</div>
+                                    <p className="text-gray-700 font-semibold">Produk tidak ditemukan</p>
+                                    <p className="text-sm text-gray-500 mt-1">Coba ubah kata kunci pencarian atau pilih kategori lain.</p>
                                 </div>
-                            ))}
+                            ) : (
+                                filteredProducts.map((product) => {
+                                    const productPrice = formatRupiah(product.original_price || product.price);
+                                    const soldBadge = typeof product.total_sold === 'number' && product.total_sold > 0;
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={product.id}
+                                            onClick={() => handleSelectProduct(product)}
+                                            className="group bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-2xl transition-all text-left flex flex-col overflow-hidden text-sm"
+                                        >
+                                            <div className="relative">
+                                                {product.image_url ? (
+                                                    <img
+                                                        src={product.image_url}
+                                                        alt={product.name}
+                                                        className="w-full h-32 sm:h-36 object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-gray-400">Tidak ada gambar</div>
+                                                )}
+                                                {product.is_hot_deal && (
+                                                    <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow">
+                                                        🔥 Hot Deal
+                                                    </span>
+                                                )}
+                                                {soldBadge && (
+                                                    <span className="absolute top-3 right-3 bg-white/90 backdrop-blur text-primary-700 text-xs font-semibold px-3 py-1 rounded-full shadow">
+                                                        Terjual {product.total_sold}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 p-3 sm:p-4 flex flex-col">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <h3
+                                                        className="font-semibold text-gray-900 text-sm sm:text-base group-hover:text-primary-600"
+                                                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                                    >
+                                                        {product.name}
+                                                    </h3>
+                                                    <span className="text-sm sm:text-base font-bold text-primary-600 whitespace-nowrap">{productPrice}</span>
+                                                </div>
+                                                {product.description && (
+                                                    <p
+                                                        className="text-[11px] sm:text-xs text-gray-500 mt-2"
+                                                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                                                    >
+                                                        {product.description}
+                                                    </p>
+                                                )}
+                                                <div className="mt-auto pt-3 sm:pt-4 flex items-center justify-between text-[11px] sm:text-xs text-gray-500">
+                                                    <span>Ketuk untuk detail</span>
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 
-                    {/* Cart Section - 1 column */}
-                    <div className="hidden lg:block bg-white rounded-lg shadow-md p-4">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4">Cart</h2>
-
-                        {cart.length === 0 ? (
-                            <p className="text-gray-500 text-center py-8">Cart masih kosong</p>
-                        ) : (
-                            <>
-                                <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
-                                    {cart.map((item, index) => (
-                                        <div key={index} className="border-b pb-3">
-                                            <div className="flex justify-between items-start mb-1">
+                    <aside className="hidden lg:flex flex-col bg-white border border-gray-100 rounded-3xl shadow-xl p-5 sticky top-6 h-[calc(100vh-160px)]">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-lg font-semibold text-gray-900">Keranjang</p>
+                                <p className="text-sm text-gray-500">{cart.length} item dipilih</p>
+                            </div>
+                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary-50 text-primary-700">Total {formatRupiah(cartTotal)}</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                            {cart.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-center text-gray-500">
+                                    <div className="text-5xl mb-3">🛒</div>
+                                    <p className="font-medium">Keranjang masih kosong</p>
+                                    <p className="text-sm text-gray-400 mt-1">Pilih produk untuk mulai membuat pesanan.</p>
+                                </div>
+                            ) : (
+                                cart.map((item, index) => {
+                                    return (
+                                        <div key={index} className="border border-gray-100 rounded-2xl p-4 shadow-sm">
+                                            <div className="flex justify-between items-start gap-4">
                                                 <div className="flex-1">
-                                                    <p className="font-bold text-gray-900">{item.product_name}</p>
+                                                    <p className="font-semibold text-gray-900">{item.product_name}</p>
                                                     {item.modifiers.length > 0 && (
-                                                        <p className="text-xs text-gray-600">
-                                                            {item.modifiers.map(m => m.name).join(', ')}
-                                                        </p>
+                                                        <div className="mt-1 space-y-1 text-xs text-gray-600">
+                                                            {item.modifiers.map((m, idx) => (
+                                                                <div key={idx} className="flex items-center gap-2">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary-500"></span>
+                                                                    <span>{m.name}</span>
+                                                                    {Number(m.price_delta || 0) > 0 && (
+                                                                        <span className="text-primary-600 font-semibold">+{formatRupiah(Number(m.price_delta || 0))}</span>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <button
                                                     onClick={() => removeFromCart(index)}
-                                                    className="text-red-600 hover:text-red-700 ml-2"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition-colors"
                                                 >
-                                                    ✕
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
                                                 </button>
                                             </div>
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex items-center gap-2">
+                                            <div className="mt-3 flex items-center justify-between">
+                                                <div className="flex items-center bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
                                                     <button
                                                         onClick={() => updateCartItemQty(index, item.quantity - 1)}
-                                                        className="w-6 h-6 bg-gray-200 rounded text-sm"
+                                                        className="w-10 h-10 text-lg font-semibold text-gray-600 hover:bg-gray-100"
                                                     >
                                                         −
                                                     </button>
-                                                    <span className="w-8 text-center">{item.quantity}</span>
+                                                    <span className="w-12 text-center font-bold">{item.quantity}</span>
                                                     <button
                                                         onClick={() => updateCartItemQty(index, item.quantity + 1)}
-                                                        className="w-6 h-6 bg-primary-600 text-white rounded text-sm"
+                                                        className="w-10 h-10 text-lg font-semibold text-white bg-primary-600 hover:bg-primary-700"
                                                     >
                                                         +
                                                     </button>
                                                 </div>
-                                                <p className="font-bold text-primary-600">{formatRupiah(item.subtotal)}</p>
+                                                <p className="text-lg font-bold text-primary-600">{formatRupiah(item.subtotal)}</p>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-
-                                <div className="border-t pt-3 mb-4">
-                                    <div className="flex justify-between text-xl font-bold">
-                                        <span>Total:</span>
-                                        <span className="text-primary-600">{formatRupiah(getTotalAmount())}</span>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => setShowPaymentModal(true)}
-                                    className="w-full py-3 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700"
-                                >
-                                    Proses Pembayaran
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                        <div className="mt-4 border-t pt-4 space-y-3">
+                            <div className="flex items-center justify-between text-sm text-gray-500">
+                                <span>Subtotal</span>
+                                <span className="font-semibold text-gray-900">{formatRupiah(cartTotal)}</span>
+                            </div>
+                            <button
+                                onClick={() => setShowPaymentModal(true)}
+                                disabled={cart.length === 0}
+                                className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Proses Pembayaran
+                            </button>
+                        </div>
+                    </aside>
+                </section>
             </div>
 
             {/* Product Detail Modal */}
@@ -1444,7 +1572,7 @@ const POSCounter = () => {
                                 {/* Total */}
                                 <div className="text-center sm:text-left">
                                     <p className="text-sm text-gray-600 mb-1">Total Bayar:</p>
-                                    <p className="text-2xl font-bold text-primary-600">{formatRupiah(getTotalAmount())}</p>
+                                    <p className="text-2xl font-bold text-primary-600">{formatRupiah(cartTotal)}</p>
                                 </div>
 
                                 {/* Action Buttons */}
@@ -1600,7 +1728,7 @@ const POSCounter = () => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-xs text-primary-700 font-medium mb-1">Total Pembayaran</p>
-                                    <p className="text-lg font-bold text-primary-600">{formatRupiah(getTotalAmount())}</p>
+                                                        <p className="text-lg font-bold text-primary-600">{formatRupiah(cartTotal)}</p>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-xs text-primary-600 space-y-1">
@@ -1733,7 +1861,7 @@ const POSCounter = () => {
                                         <div className="flex justify-between items-center mb-4">
                                             <div>
                                                 <p className="text-sm text-gray-600 mb-1">Total Pembayaran</p>
-                                                <p className="text-2xl font-bold text-primary-600">{formatRupiah(getTotalAmount())}</p>
+                                                <p className="text-2xl font-bold text-primary-600">{formatRupiah(cartTotal)}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm text-gray-600">{cart.length} item</p>

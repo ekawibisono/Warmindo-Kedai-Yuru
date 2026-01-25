@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.kedaiyuru.click/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL;
 
 // Create axios instance
 const api = axios.create({
@@ -18,6 +18,28 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Add response interceptor to handle customer auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle customer authentication errors
+    if (error.response?.status === 401) {
+      const requestUrl = error.config?.url || '';
+      
+      // Only handle customer auth routes and be more specific
+      if (requestUrl.includes('/auth/customer/profile') || requestUrl.includes('/auth/customer/orders')) {
+        localStorage.removeItem('customer_token');
+        localStorage.removeItem('customer_data');
+        
+        // Trigger a custom event for components to handle logout
+        window.dispatchEvent(new CustomEvent('customer-auth-failed'));
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 export const authAPI = {
   verifyStaffKey: (staffKey) => api.post('/staff/auth/verify', {}, {
@@ -85,6 +107,14 @@ export const publicAPI = {
     const customerToken = localStorage.getItem('customer_token');
     if (!customerToken) return Promise.resolve();
     return api.post('/auth/customer/logout', {}, {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
+  updateProfile: (profileData) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.put('/auth/customer/profile', profileData, {
       headers: { 'Authorization': `Bearer ${customerToken}` }
     });
   },

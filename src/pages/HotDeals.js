@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import { staffAPI } from '../services/api';
-import notify from '../components/common/Toast';
+import { notify } from '../components/common/Toast';
 
 const HotDeals = () => {
     const [products, setProducts] = useState([]);
