@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.kedaiyuru.click/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL;
 
 // Create axios instance
 const api = axios.create({
@@ -85,6 +85,14 @@ export const publicAPI = {
     const customerToken = localStorage.getItem('customer_token');
     if (!customerToken) return Promise.resolve();
     return api.post('/auth/customer/logout', {}, {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
+  updateProfile: (profileData) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.put('/public/customer/profile', profileData, {
       headers: { 'Authorization': `Bearer ${customerToken}` }
     });
   },

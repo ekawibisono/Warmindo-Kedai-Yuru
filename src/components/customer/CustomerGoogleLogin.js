@@ -7,6 +7,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
   const [error, setError] = useState('');
   const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [fullName, setFullName] = useState('');
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [customerData, setCustomerData] = useState(null);
   const [token, setToken] = useState(null);
@@ -50,6 +51,8 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
           
           // Check if user has phone number
           if (!data.customer.phone) {
+            // Set initial full name from Google data
+            setFullName(data.customer.name || '');
             // Show phone input modal if no phone number
             setShowPhoneInput(true);
           } else {
@@ -77,6 +80,16 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
   const handlePhoneSubmit = async (e) => {
     e.preventDefault();
     
+    if (!fullName.trim()) {
+      setError('Nama lengkap wajib diisi');
+      return;
+    }
+
+    if (fullName.trim().length < 2) {
+      setError('Nama lengkap minimal 2 karakter');
+      return;
+    }
+    
     if (!phoneNumber.trim()) {
       setError('Nomor telepon wajib diisi');
       return;
@@ -93,22 +106,27 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://api.kedaiyuru.click/api'}/public/customer/profile/phone`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/public/customer/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          phone: phoneNumber.trim()
+          phone: phoneNumber.trim(),
+          full_name: fullName.trim()
         })
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Update customer data with phone number
-        const updatedCustomer = { ...customerData, phone: phoneNumber.trim() };
+        // Update customer data with phone number and full name
+        const updatedCustomer = { 
+          ...customerData, 
+          phone: phoneNumber.trim(),
+          full_name: fullName.trim()
+        };
         
         // Complete login process
         login(updatedCustomer, token);
@@ -117,7 +135,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
           onSuccess(updatedCustomer);
         }
       } else {
-        setError(data.error || 'Gagal menyimpan nomor telepon');
+        setError(data.error || 'Gagal menyimpan data profil');
       }
 
     } catch (error) {
@@ -278,7 +296,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
                 <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
-                <h2 className="text-lg font-bold">Lengkapi Nomor Telepon</h2>
+                <h2 className="text-lg font-bold">Lengkapi Profil Anda</h2>
               </div>
             </div>
 
@@ -288,7 +306,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
                 {/* Welcome Message */}
                 <div className="text-center">
                   <p className="text-gray-700 text-sm">
-                    Halo {customerData?.name}! Mohon isi nomor telepon untuk melanjutkan.
+                    Halo {customerData?.name}! Mohon lengkapi profil Anda untuk melanjutkan.
                   </p>
                 </div>
 
@@ -299,8 +317,22 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
                   </div>
                 )}
 
-                {/* Phone Input */}
+                {/* Profile Inputs */}
                 <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nama Lengkap <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full px-3 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:ring-0 transition-colors text-gray-900 placeholder-gray-400"
+                      placeholder="Masukkan nama lengkap"
+                      required
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Nomor Telepon <span className="text-red-500">*</span>
@@ -324,7 +356,7 @@ const CustomerGoogleLogin = ({ onSuccess, onClose }) => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={phoneLoading || !phoneNumber.trim()}
+                  disabled={phoneLoading || !phoneNumber.trim() || !fullName.trim()}
                   className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium py-3 px-4 rounded-lg transition-all duration-300 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
                 >
                   {phoneLoading ? (

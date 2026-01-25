@@ -189,7 +189,7 @@ function App() {
           <Route path="*" element={<Navigate to="/menu" replace />} />
         </Routes>
         <ToastContainer
-          position={window.innerWidth <= 768 ? "top-center" : "top-right"}
+          position={window.innerWidth <= 768 ? "top-center" : "top-center"}
           autoClose={3000}
           hideProgressBar={false}
           newestOnTop={false}

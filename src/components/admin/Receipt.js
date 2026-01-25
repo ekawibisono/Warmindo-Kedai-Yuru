@@ -115,7 +115,7 @@ const Receipt = ({ order, items, onClose }) => {
             formData.append("orderId", order.id);
             formData.append("customerName", order.customer_name || "Guest");
 
-            const API_BASE_URL = process.env.REACT_APP_API_URL || "https://api.kedaiyuru.click";
+            const API_BASE_URL = process.env.REACT_APP_API_URL;
 
             const response = await axios.post(`${API_BASE_URL}/receipts/upload`, formData, {
                 headers: { "Content-Type": "multipart/form-data" },
