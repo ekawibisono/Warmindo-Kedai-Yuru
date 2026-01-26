@@ -1,9 +1,64 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/admin/AdminLayout';
 import Receipt from '../components/admin/Receipt';
 import { publicAPI, staffAPI } from '../services/api';
 import { notify } from '../components/common/Toast';
+
+// Memoized Product Card Component untuk performance
+const ProductCard = memo(({ product, formatRupiah, onSelectProduct }) => {
+    const productPrice = formatRupiah(product.original_price || product.price);
+    const soldBadge = typeof product.total_sold === 'number' && product.total_sold > 0;
+    
+    return (
+        <button
+            type="button"
+            onClick={() => onSelectProduct(product)}
+            className="group bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-2xl transition-all text-left flex flex-col overflow-hidden text-sm"
+        >
+            <div className="relative">
+                {product.image_url ? (
+                    <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-full h-32 sm:h-36 object-cover"
+                    />
+                ) : (
+                    <div className="w-full h-32 sm:h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                        <div className="text-4xl">🍽️</div>
+                    </div>
+                )}
+                {soldBadge && (
+                    <div className="absolute top-2 left-2 bg-green-500 text-white text-[9px] sm:text-[10px] px-2 py-1 rounded-full font-bold">
+                        {product.total_sold} terjual
+                    </div>
+                )}
+            </div>
+            <div className="flex-1 flex flex-col p-3 sm:p-4">
+                <h3 className="font-bold text-gray-900 text-xs sm:text-sm leading-tight mb-2 group-hover:text-primary-600 transition-colors">
+                    {product.name}
+                </h3>
+                <div className="text-primary-600 font-bold text-sm sm:text-base mb-auto">
+                    {productPrice}
+                </div>
+                {product.description && (
+                    <p
+                        className="text-[11px] sm:text-xs text-gray-500 mt-2"
+                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                    >
+                        {product.description}
+                    </p>
+                )}
+                <div className="mt-auto pt-3 sm:pt-4 flex items-center justify-between text-[11px] sm:text-xs text-gray-500">
+                    <span>Ketuk untuk detail</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </div>
+        </button>
+    );
+});
 
 const POSCounter = () => {
     const [menu, setMenu] = useState({
@@ -20,6 +75,7 @@ const POSCounter = () => {
     const [quantity, setQuantity] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [productsToShow, setProductsToShow] = useState(20); // Limit initial products
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [receipt, setReceipt] = useState(null);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -56,6 +112,18 @@ const POSCounter = () => {
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [isSearching, setIsSearching] = useState(false);
 
+    // Debounce hook untuk search optimization
+    const useDebounce = (value, delay) => {
+        const [debouncedValue, setDebouncedValue] = useState(value);
+        useEffect(() => {
+            const handler = setTimeout(() => setDebouncedValue(value), delay);
+            return () => clearTimeout(handler);
+        }, [value, delay]);
+        return debouncedValue;
+    };
+
+    const debouncedSearchQuery = useDebounce(customerSearchQuery, 500);
+
     useEffect(() => {
         fetchMenu();
     }, []);
@@ -72,8 +140,8 @@ const POSCounter = () => {
         }
     };
 
-    // Search existing customers with auto-refresh
-    const searchCustomers = async (query) => {
+    // Search existing customers dengan debouncing
+    const searchCustomers = useCallback(async (query) => {
         if (!query.trim()) {
             setSearchResults([]);
             return;
@@ -104,44 +172,37 @@ const POSCounter = () => {
         } finally {
             setIsSearching(false);
         }
-    };
+    }, []);
 
-    // Auto-refresh customer data periodically for realtime feel
+    // Gunakan debounced search query
     useEffect(() => {
-        if (customerSearchQuery.trim() && searchResults.length > 0) {
-            const interval = setInterval(() => {
-                // Silently refresh search results every 30 seconds
-                searchCustomers(customerSearchQuery);
-            }, 30000);
+        searchCustomers(debouncedSearchQuery);
+    }, [debouncedSearchQuery, searchCustomers]);
 
-            return () => clearInterval(interval);
-        }
-    }, [customerSearchQuery, searchResults.length]);
-
-    // Handle customer selection
-    const handleSelectExistingCustomer = (customer) => {
+    // Handle customer selection dengan useCallback
+    const handleSelectExistingCustomer = useCallback((customer) => {
         setSelectedCustomer(customer);
-        setCustomerInfo({
-            ...customerInfo,
+        setCustomerInfo(prev => ({
+            ...prev,
             customer_name: customer.name,
             customer_phone: customer.phone,
-        });
+        }));
         setCustomerSearchQuery('');
         setSearchResults([]);
-    };
+    }, []);
 
-    // Reset customer selection
-    const resetCustomerSelection = () => {
+    // Reset customer selection dengan useCallback
+    const resetCustomerSelection = useCallback(() => {
         setCustomerType('guest');
         setSelectedCustomer(null);
         setCustomerSearchQuery('');
         setSearchResults([]);
-        setCustomerInfo({
-            ...customerInfo,
+        setCustomerInfo(prev => ({
+            ...prev,
             customer_name: '',
             customer_phone: '',
-        });
-    };
+        }));
+    }, []);
     const API_BASE_URL = process.env.REACT_APP_API_URL
     const normalizePhone62 = (raw) => {
         const digits = String(raw || "").replace(/\D/g, "");
@@ -340,7 +401,8 @@ const POSCounter = () => {
         }
     };
 
-    const formatRupiah = (amount) => {
+    // Optimized format function dengan memoization
+    const formatRupiah = useCallback((amount) => {
         const numAmount = Number(amount);
         if (!Number.isFinite(numAmount)) {
             return 'Rp 0';
@@ -350,28 +412,22 @@ const POSCounter = () => {
             currency: 'IDR',
             minimumFractionDigits: 0,
         }).format(numAmount);
-    };
+    }, []);
 
-    const getProductModifierGroups = (productId) => {
+    const getProductModifierGroups = useCallback((productId) => {
         const mappings = (menu.product_modifier_groups || [])
             .filter((pmg) => pmg.product_id === productId)
             .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
         return mappings
             .map((pmg) => menu.modifier_groups.find((g) => g.id === pmg.group_id))
             .filter(Boolean);
-    };
+    }, [menu.product_modifier_groups, menu.modifier_groups]);
 
-    const getGroupModifiers = (groupId) => {
+    const getGroupModifiers = useCallback((groupId) => {
         return (menu.modifiers || [])
             .filter((m) => m.group_id === groupId && m.is_active)
             .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    };
-
-    const handleSelectProduct = (product) => {
-        setSelectedProduct(product);
-        setSelectedModifiers({});
-        setQuantity(1);
-    };
+    }, [menu.modifiers]);
 
     const handleModifierChange = (groupId, modifierId, checked) => {
         const group = menu.modifier_groups.find(g => g.id === groupId);
@@ -409,7 +465,7 @@ const POSCounter = () => {
         });
     };
 
-    const calculateItemSubtotal = () => {
+    const calculateItemSubtotal = useCallback(() => {
         if (!selectedProduct) return 0;
         // Gunakan original_price jika produk adalah hot deal, jika tidak pakai harga normal
         let price = Number(selectedProduct.original_price || selectedProduct.price || 0);
@@ -426,9 +482,9 @@ const POSCounter = () => {
         });
 
         return price * quantity;
-    };
+    }, [selectedProduct, selectedModifiers, quantity, menu.modifiers]);
 
-    const canAddToCart = () => {
+    const canAddToCart = useCallback(() => {
         if (!selectedProduct) return false;
         const groups = getProductModifierGroups(selectedProduct.id);
         return groups.every(group => {
@@ -436,9 +492,16 @@ const POSCounter = () => {
             const selected = selectedModifiers[group.id] || [];
             return selected.length >= group.min_select;
         });
-    };
+    }, [selectedProduct, selectedModifiers, getProductModifierGroups]);
 
-    const addToCart = () => {
+    // Optimized handlers dengan useCallback
+    const handleSelectProduct = useCallback((product) => {
+        setSelectedProduct(product);
+        setQuantity(1);
+        setSelectedModifiers({});
+    }, []);
+
+    const addToCart = useCallback(() => {
         if (!canAddToCart()) return;
         const orderedGroups = getProductModifierGroups(selectedProduct.id);
 
@@ -468,16 +531,16 @@ const POSCounter = () => {
             subtotal: Number.isFinite(subtotal) ? subtotal : 0
         };
 
-        setCart([...cart, cartItem]);
+        setCart(prev => [...prev, cartItem]);
         setSelectedProduct(null);
         // notify.success(`${selectedProduct.name} ditambahkan ke cart`);
-    };
+    }, [canAddToCart, getProductModifierGroups, getGroupModifiers, selectedProduct, selectedModifiers, quantity, calculateItemSubtotal]);
 
-    const removeFromCart = (index) => {
-        setCart(cart.filter((_, i) => i !== index));
-    };
+    const removeFromCart = useCallback((index) => {
+        setCart(prev => prev.filter((_, i) => i !== index));
+    }, []);
 
-    const updateCartItemQty = (index, newQty) => {
+    const updateCartItemQty = useCallback((index, newQty) => {
         const qty = Number(newQty);
         if (!Number.isFinite(qty) || qty < 1) return;
 
@@ -500,11 +563,35 @@ const POSCounter = () => {
             updated[index] = item;
             return updated;
         });
-    };
+    }, []);
 
-    const getTotalAmount = () => {
+    // Optimized calculations dengan useMemo
+    const getTotalAmount = useCallback(() => {
         return cart.reduce((sum, item) => sum + item.subtotal, 0);
-    };
+    }, [cart]);
+
+    const cartTotal = useMemo(() => getTotalAmount(), [getTotalAmount]);
+
+    // Optimized product filtering dengan useMemo dan pagination
+    const filteredProducts = useMemo(() => {
+        const filtered = menu.products.filter(product => {
+            if (!product.is_active) return false;
+            const matchesCategory = !selectedCategory || String(product.category_id) === String(selectedCategory);
+            const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchesCategory && matchesSearch;
+        });
+        return filtered.slice(0, productsToShow); // Limit products shown
+    }, [menu.products, selectedCategory, searchQuery, productsToShow]);
+
+    // Function to load more products
+    const loadMoreProducts = useCallback(() => {
+        setProductsToShow(prev => prev + 20);
+    }, []);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setProductsToShow(20);
+    }, [selectedCategory, searchQuery]);
 
     const handleSubmitOrder = async () => {
         if (cart.length === 0) {
@@ -582,14 +669,6 @@ const POSCounter = () => {
             notify.error(error.response?.data?.error || 'Gagal membuat order');
         }
     };
-
-    const filteredProducts = menu.products.filter(product => {
-        if (!product.is_active) return false;
-        const matchesCategory = !selectedCategory || String(product.category_id) === String(selectedCategory);
-        const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesCategory && matchesSearch;
-    });
-    const cartTotal = getTotalAmount();
 
     if (loading) {
         return (
@@ -697,7 +776,11 @@ const POSCounter = () => {
                                 </div>
                             </div>
                             <div className="text-xs sm:text-sm text-gray-500">
-                                <span className="font-semibold text-gray-900">{filteredProducts.length}</span> produk ditemukan
+                                <span className="font-semibold text-gray-900">{filteredProducts.length}</span> dari {menu.products.filter(p => 
+                                    (!selectedCategory || String(p.category_id) === String(selectedCategory)) && 
+                                    p.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                                    p.is_active
+                                ).length} produk ditampilkan
                             </div>
                         </div>
 
@@ -709,67 +792,32 @@ const POSCounter = () => {
                                     <p className="text-sm text-gray-500 mt-1">Coba ubah kata kunci pencarian atau pilih kategori lain.</p>
                                 </div>
                             ) : (
-                                filteredProducts.map((product) => {
-                                    const productPrice = formatRupiah(product.original_price || product.price);
-                                    const soldBadge = typeof product.total_sold === 'number' && product.total_sold > 0;
-                                    return (
-                                        <button
-                                            type="button"
-                                            key={product.id}
-                                            onClick={() => handleSelectProduct(product)}
-                                            className="group bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-2xl transition-all text-left flex flex-col overflow-hidden text-sm"
-                                        >
-                                            <div className="relative">
-                                                {product.image_url ? (
-                                                    <img
-                                                        src={product.image_url}
-                                                        alt={product.name}
-                                                        className="w-full h-32 sm:h-36 object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-gray-400 text-center px-2">{product.name}</div>
-                                                )}
-                                                {product.is_hot_deal && (
-                                                    <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full shadow">
-                                                        🔥 Hot Deal
-                                                    </span>
-                                                )}
-                                                {soldBadge && (
-                                                    <span className="absolute top-3 right-3 bg-white/90 backdrop-blur text-primary-700 text-xs font-semibold px-3 py-1 rounded-full shadow">
-                                                        Terjual {product.total_sold}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex-1 p-3 sm:p-4 flex flex-col">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <h3
-                                                        className="font-semibold text-gray-900 text-sm sm:text-base group-hover:text-primary-600"
-                                                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                                                    >
-                                                        {product.name}
-                                                    </h3>
-                                                    <span className="text-sm sm:text-base font-bold text-primary-600 whitespace-nowrap">{productPrice}</span>
-                                                </div>
-                                                {product.description && (
-                                                    <p
-                                                        className="text-[11px] sm:text-xs text-gray-500 mt-2"
-                                                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                                                    >
-                                                        {product.description}
-                                                    </p>
-                                                )}
-                                                <div className="mt-auto pt-3 sm:pt-4 flex items-center justify-between text-[11px] sm:text-xs text-gray-500">
-                                                    <span>Ketuk untuk detail</span>
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                    </svg>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })
+                                filteredProducts.map((product) => (
+                                    <ProductCard
+                                        key={product.id}
+                                        product={product}
+                                        formatRupiah={formatRupiah}
+                                        onSelectProduct={handleSelectProduct}
+                                    />
+                                ))
                             )}
                         </div>
+                        
+                        {/* Load More Button */}
+                        {filteredProducts.length === productsToShow && menu.products.filter(p => 
+                            (!selectedCategory || String(p.category_id) === String(selectedCategory)) && 
+                            p.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
+                            p.is_active
+                        ).length > productsToShow && (
+                            <div className="text-center mt-6">
+                                <button
+                                    onClick={loadMoreProducts}
+                                    className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl font-semibold hover:from-primary-700 hover:to-primary-800 transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
+                                >
+                                    Tampilkan Lebih Banyak Produk
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <aside className="hidden lg:flex flex-col bg-white border border-gray-100 rounded-3xl shadow-xl p-5 sticky top-6 h-[calc(100vh-240px)]">
@@ -1136,10 +1184,7 @@ const POSCounter = () => {
                                                     <input
                                                         type="text"
                                                         value={customerSearchQuery}
-                                                        onChange={(e) => {
-                                                            setCustomerSearchQuery(e.target.value);
-                                                            searchCustomers(e.target.value);
-                                                        }}
+                                                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
                                                         className="w-full px-4 py-3 pl-10 pr-10 border-2 border-blue-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors"
                                                         placeholder="Ketik nama, phone, atau email..."
                                                     />
