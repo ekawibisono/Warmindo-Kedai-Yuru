@@ -6,12 +6,12 @@ import { notify } from '../components/common/Toast';
 
 const Modifiers = () => {
   const [modifiers, setModifiers] = useState([]);
+  const [groupFilter, setGroupFilter] = useState('');
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [editingModifier, setEditingModifier] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [formData, setFormData] = useState({
     name: '',
     group_id: '',
@@ -184,60 +184,7 @@ const Modifiers = () => {
     return group ? group.name : '-';
   };
 
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-  };
 
-  const getSortedModifiers = () => {
-    if (!sortConfig.key) return modifiers;
-
-    return [...modifiers].sort((a, b) => {
-      let aValue, bValue;
-
-      if (sortConfig.key === 'group') {
-        aValue = getGroupName(a.group_id).toLowerCase();
-        bValue = getGroupName(b.group_id).toLowerCase();
-      } else if (sortConfig.key === 'name') {
-        aValue = a.name.toLowerCase();
-        bValue = b.name.toLowerCase();
-      } else {
-        aValue = a[sortConfig.key];
-        bValue = b[sortConfig.key];
-      }
-
-      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  };
-
-  const getSortIcon = (columnKey) => {
-    if (sortConfig.key !== columnKey) {
-      return (
-        <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-        </svg>
-      );
-    }
-    
-    if (sortConfig.direction === 'asc') {
-      return (
-        <svg className="w-4 h-4 ml-1 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-        </svg>
-      );
-    } else {
-      return (
-        <svg className="w-4 h-4 ml-1 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      );
-    }
-  };
 
   const formatRupiah = (number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -260,24 +207,48 @@ const Modifiers = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Modifiers</h1>
-            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Kelola modifier untuk produk</p>
+        {/* Header with Title and Actions */}
+        <div className="flex flex-col space-y-4">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-4 sm:space-y-0">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Modifiers</h1>
+              <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Kelola modifier untuk produk</p>
+            </div>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+              <button onClick={() => setShowBulkModal(true)} className="btn-secondary flex items-center justify-center w-full sm:w-auto">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14v6m-3-3h6m-6-3h6m-9-1V4a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h6m2-6V8" />
+                </svg>
+                <span className="sm:inline">Tambah Multiple</span>
+              </button>
+              <button onClick={() => setShowModal(true)} className="btn-primary flex items-center justify-center w-full sm:w-auto">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="sm:inline">Tambah Modifier</span>
+              </button>
+            </div>
           </div>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <button onClick={() => setShowBulkModal(true)} className="btn-secondary flex items-center justify-center w-full sm:w-auto">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14v6m-3-3h6m-6-3h6m-9-1V4a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h6m2-6V8" />
-              </svg>
-              <span className="sm:inline">Tambah Multiple</span>
-            </button>
-            <button onClick={() => setShowModal(true)} className="btn-primary flex items-center justify-center w-full sm:w-auto">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="sm:inline">Tambah Modifier</span>
-            </button>
+          
+          {/* Filter Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-2 border-t border-gray-200">
+            <div className="text-sm text-gray-500">
+              {modifiers.filter(modifier => !groupFilter || String(modifier.group_id) === String(groupFilter)).length} modifier ditampilkan
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="groupFilter" className="text-sm font-medium text-gray-700 whitespace-nowrap">Filter Group:</label>
+              <select
+                id="groupFilter"
+                value={groupFilter}
+                onChange={e => setGroupFilter(e.target.value)}
+                className="input-field min-w-0 w-full sm:w-auto"
+              >
+                <option value="">Semua Group</option>
+                {groups.map(group => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -286,23 +257,11 @@ const Modifiers = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
-                  onClick={() => handleSort('name')}
-                >
-                  <div className="flex items-center">
-                    Nama
-                    {getSortIcon('name')}
-                  </div>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Nama
                 </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
-                  onClick={() => handleSort('group')}
-                >
-                  <div className="flex items-center">
-                    Group
-                    {getSortIcon('group')}
-                  </div>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Group
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price Delta</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -310,7 +269,9 @@ const Modifiers = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {getSortedModifiers().map((modifier) => (
+              {modifiers
+                .filter(modifier => !groupFilter || String(modifier.group_id) === String(groupFilter))
+                .map((modifier) => (
                 <tr key={modifier.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{modifier.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{getGroupName(modifier.group_id)}</td>
@@ -344,33 +305,11 @@ const Modifiers = () => {
 
         {/* Mobile Card View */}
         <div className="md:hidden space-y-4">
-          {/* Mobile Sort Controls */}
-          <div className="flex space-x-2 overflow-x-auto pb-2">
-            <button
-              onClick={() => handleSort('name')}
-              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
-                sortConfig.key === 'name' 
-                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
-            >
-              Nama {getSortIcon('name')}
-            </button>
-            <button
-              onClick={() => handleSort('group')}
-              className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
-                sortConfig.key === 'group' 
-                  ? 'bg-primary-100 text-primary-700 border border-primary-200' 
-                  : 'bg-white text-gray-600 border border-gray-200'
-              }`}
-            >
-              Group {getSortIcon('group')}
-            </button>
-          </div>
-
           {/* Mobile Cards */}
           <div className="space-y-3">
-            {getSortedModifiers().map((modifier) => (
+            {modifiers
+              .filter(modifier => !groupFilter || String(modifier.group_id) === String(groupFilter))
+              .map((modifier) => (
               <div key={modifier.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
@@ -419,7 +358,7 @@ const Modifiers = () => {
             ))}
           </div>
           
-          {getSortedModifiers().length === 0 && (
+          {modifiers.filter(modifier => !groupFilter || String(modifier.group_id) === String(groupFilter)).length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />

@@ -756,7 +756,7 @@ const Receipt = ({ order, items, onClose }) => {
                                                     textAlign: "right", 
                                                     textTransform: "uppercase" 
                                                 }}>
-                                                    {order.type === "delivery" ? "DELIVERY" : order.type === "dine_in" ? "DINE IN" : "PICKUP"}
+                                                    {order.type === "delivery" ? "DELIVERY" : order.type === "dine_in" ? "DINE IN" : order.type === "takeaway" ? "TAKEAWAY" : "PICKUP"}
                                                 </td>
                                             </tr>
                                         </tbody>

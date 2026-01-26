@@ -26,6 +26,7 @@ const SalesReport = () => {
         cashOrders: 0,
         qrisOrders: 0,
         pickupOrders: 0,
+        takeawayOrders: 0,
         deliveryOrders: 0
     });
 
@@ -154,6 +155,7 @@ const SalesReport = () => {
         const qrisOrders = completedOrders.filter(o => o.payment_method === 'qris').length;
 
         const pickupOrders = completedOrders.filter(o => o.type === 'pickup').length;
+        const takeawayOrders = completedOrders.filter(o => o.type === 'takeaway').length;
         const deliveryOrders = completedOrders.filter(o => o.type === 'delivery').length;
 
         setSummary({
@@ -163,6 +165,7 @@ const SalesReport = () => {
             cashOrders,
             qrisOrders,
             pickupOrders,
+            takeawayOrders,
             deliveryOrders
         });
     };
@@ -221,7 +224,7 @@ const SalesReport = () => {
             formatDate(order.created_at),
             order.customer_name || '-',
             order.customer_phone || '-',
-            order.type === 'pickup' ? 'Pickup' : 'Delivery',
+            order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery',
             order.payment_method === 'cash' ? 'Cash' : 'QRIS',
             order.status,
             order.subtotal || 0,
@@ -239,6 +242,7 @@ const SalesReport = () => {
         rows.push(['Cash Orders', summary.cashOrders]);
         rows.push(['QRIS Orders', summary.qrisOrders]);
         rows.push(['Pickup Orders', summary.pickupOrders]);
+        rows.push(['TakeAway Orders', summary.takeawayOrders]);
         rows.push(['Delivery Orders', summary.deliveryOrders]);
 
         // Convert to CSV string
@@ -387,6 +391,7 @@ const SalesReport = () => {
                             >
                                 <option value="all">Semua Tipe</option>
                                 <option value="pickup">Pickup</option>
+                                <option value="takeaway">TakeAway</option>
                                 <option value="delivery">Delivery</option>
                             </select>
                         </div>
@@ -461,13 +466,17 @@ const SalesReport = () => {
 
                     <div className="card">
                         <div className="text-sm text-gray-600 mb-1">Order Types</div>
-                        <div className="flex justify-between items-center">
+                        <div className="grid grid-cols-3 gap-2 text-center">
                             <div>
-                                <div className="text-xl font-bold text-gray-900">{summary.pickupOrders}</div>
-                                <div className="text-xs text-gray-600">🏪 Pickup</div>
+                                <div className="text-lg font-bold text-gray-900">{summary.pickupOrders}</div>
+                                <div className="text-xs text-gray-600">📦 Pickup</div>
                             </div>
                             <div>
-                                <div className="text-xl font-bold text-gray-900">{summary.deliveryOrders}</div>
+                                <div className="text-lg font-bold text-gray-900">{summary.takeawayOrders}</div>
+                                <div className="text-xs text-gray-600">🥡 TakeAway</div>
+                            </div>
+                            <div>
+                                <div className="text-lg font-bold text-gray-900">{summary.deliveryOrders}</div>
                                 <div className="text-xs text-gray-600">🚚 Delivery</div>
                             </div>
                         </div>
@@ -512,7 +521,7 @@ const SalesReport = () => {
                                             <div>
                                                 <div className="text-gray-500">Info:</div>
                                                 <div className="text-gray-900">
-                                                    {order.type === 'pickup' ? '🏪 Pickup' : '🚚 Delivery'}
+                                                    {order.type === 'pickup' ? '📦 Pickup' : order.type === 'takeaway' ? '🥡 TakeAway' : '🚚 Delivery'}
                                                 </div>
                                                 <div className="text-gray-900">
                                                     {order.payment_method === 'cash' ? '💵 Cash' : '📱 QRIS'}
@@ -552,7 +561,7 @@ const SalesReport = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-gray-900">
-                                                        {order.type === 'pickup' ? '🏪 Pickup' : '🚚 Delivery'}
+                                                        {order.type === 'pickup' ? '📦 Pickup' : order.type === 'takeaway' ? '🥡 TakeAway' : '🚚 Delivery'}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
