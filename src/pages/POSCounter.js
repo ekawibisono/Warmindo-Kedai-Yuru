@@ -772,7 +772,7 @@ const POSCounter = () => {
                         </div>
                     </div>
 
-                    <aside className="hidden lg:flex flex-col bg-white border border-gray-100 rounded-3xl shadow-xl p-5 sticky top-6 h-[calc(100vh-160px)]">
+                    <aside className="hidden lg:flex flex-col bg-white border border-gray-100 rounded-3xl shadow-xl p-5 sticky top-6 h-[calc(100vh-240px)]">
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <p className="text-lg font-semibold text-gray-900">Keranjang</p>
@@ -1100,28 +1100,24 @@ const POSCounter = () => {
                                                                 </svg>
                                                                 <span>{selectedCustomer.email}</span>
                                                             </p>
-                                                            <div className="flex items-center space-x-2 mt-2">
-                                                                {selectedCustomer.order_count === 0 ? (
-                                                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full font-medium">
-                                                                        NEW
-                                                                    </span>
-                                                                ) : (
+                                                            {selectedCustomer.order_count > 0 && (
+                                                                <div className="flex items-center space-x-2 mt-2">
                                                                     <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
                                                                         {selectedCustomer.order_count} orders
                                                                     </span>
-                                                                )}
-                                                                {selectedCustomer.order_count >= 10 && (
-                                                                    <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full font-medium">
-                                                                        VIP
-                                                                    </span>
-                                                                )}
-                                                                {selectedCustomer.isOnline && (
-                                                                    <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium flex items-center space-x-1">
-                                                                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                                                                        <span>Online</span>
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                                    {selectedCustomer.order_count >= 10 && (
+                                                                        <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full font-medium">
+                                                                            VIP
+                                                                        </span>
+                                                                    )}
+                                                                    {selectedCustomer.isOnline && (
+                                                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium flex items-center space-x-1">
+                                                                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                                                            <span>Online</span>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <button
