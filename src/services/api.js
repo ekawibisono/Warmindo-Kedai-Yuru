@@ -114,7 +114,7 @@ export const publicAPI = {
   updateProfile: (profileData) => {
     const customerToken = localStorage.getItem('customer_token');
     if (!customerToken) return Promise.reject(new Error('No customer token'));
-    return api.put('/auth/customer/profile', profileData, {
+    return api.put('/public/customer/profile', profileData, {
       headers: { 'Authorization': `Bearer ${customerToken}` }
     });
   },
@@ -171,6 +171,8 @@ export const staffAPI = {
   getProductModifierGroups: () => api.get('/staff/catalog/product-modifier-groups'),
   addProductModifierGroup: (data) => api.post('/staff/catalog/product-modifier-groups', data),
   removeProductModifierGroup: (data) => api.delete('/staff/catalog/product-modifier-groups', { data }),
+  reorderProductModifierGroups: (product_id, ordered_group_ids) =>
+    api.post('/staff/catalog/product-modifier-groups/reorder', { product_id, ordered_group_ids }),
 
   getAllOrders: (params = {}) => {
     const queryString = new URLSearchParams(params).toString();

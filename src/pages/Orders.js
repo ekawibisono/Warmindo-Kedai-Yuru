@@ -452,7 +452,16 @@ const Orders = () => {
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
-                                    🏪 Pickup
+                                    📦 Pickup
+                                </button>
+                                <button
+                                    onClick={() => setFilter('takeaway')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'takeaway'
+                                            ? 'bg-primary-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    🥡 TakeAway
                                 </button>
                             </div>
                         </div>
@@ -529,9 +538,9 @@ const Orders = () => {
                                     <div className="space-y-2 text-sm mb-4">
                                         <div className="flex items-center text-gray-600">
                                             <span className="mr-2">
-                                                {order.type === 'delivery' ? '🚗' : '🏪'}
+                                                {order.type === 'delivery' ? '🚗' : order.type === 'takeaway' ? '🥡' : '📦'}
                                             </span>
-                                            <span>{order.type === 'delivery' ? 'Delivery' : 'Pickup'}</span>
+                                            <span>{order.type === 'delivery' ? 'Delivery' : order.type === 'takeaway' ? 'TakeAway' : 'Pickup'}</span>
                                         </div>
                                         <div className="flex items-center text-gray-600">
                                             <span className="mr-2">📞</span>
@@ -617,7 +626,7 @@ const Orders = () => {
                                                     ? 'bg-blue-100 text-blue-800'
                                                     : 'bg-green-100 text-green-800'
                                                 }`}>
-                                                {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : '🏪 Pickup'}
+                                                {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : selectedOrder.order.type === 'takeaway' ? '🥡 TakeAway' : '📦 Pickup'}
                                             </span>
                                         </div>
                                         <div>
