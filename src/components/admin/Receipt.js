@@ -859,6 +859,45 @@ const Receipt = ({ order, items, onClose }) => {
                                                     {formatRupiah(subtotal)}
                                                 </td>
                                             </tr>
+                                            
+                                            {/* DISKON - tampilkan jika ada */}
+                                            {order.discount_amount && Number(order.discount_amount) > 0 && (
+                                                <tr>
+                                                    <td style={{ 
+                                                        padding: "1.2mm 0", 
+                                                        fontSize: isAndroid ? "11px" : "10px", 
+                                                        fontWeight: isAndroid ? 800 : 700 
+                                                    }}>Diskon</td>
+                                                    <td style={{ 
+                                                        padding: "1.2mm 0", 
+                                                        fontSize: isAndroid ? "11px" : "10px", 
+                                                        fontWeight: isAndroid ? 900 : 800, 
+                                                        textAlign: "right" 
+                                                    }}>
+                                                        -{formatRupiah(order.discount_amount)}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            
+                                            {/* PAJAK - tampilkan jika ada */}
+                                            {order.tax_amount && Number(order.tax_amount) > 0 && (
+                                                <tr>
+                                                    <td style={{ 
+                                                        padding: "1.2mm 0", 
+                                                        fontSize: isAndroid ? "11px" : "10px", 
+                                                        fontWeight: isAndroid ? 800 : 700 
+                                                    }}>Pajak</td>
+                                                    <td style={{ 
+                                                        padding: "1.2mm 0", 
+                                                        fontSize: isAndroid ? "11px" : "10px", 
+                                                        fontWeight: isAndroid ? 900 : 800, 
+                                                        textAlign: "right" 
+                                                    }}>
+                                                        +{formatRupiah(order.tax_amount)}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            
                                             <tr>
                                                 <td style={{ 
                                                     padding: "1.8mm 0 0 0", 
