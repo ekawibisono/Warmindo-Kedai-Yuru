@@ -162,8 +162,10 @@ const CustomerMenu = () => {
     const cartItem = {
       id: `${selectedProduct.id}_${Date.now()}`,
       product_id: selectedProduct.id,
+      category_id: selectedProduct.category_id, // Add category_id for discount validation
       product_name: selectedProduct.name,
       base_price: selectedProduct.price,
+      price: selectedProduct.price, // Add price field for discount validation
       quantity,
       modifiers: Object.values(selectedModifiers)
         .flat()

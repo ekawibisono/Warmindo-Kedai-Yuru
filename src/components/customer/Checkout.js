@@ -91,9 +91,9 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
       const items = cart.map(item => ({
         product_id: item.product_id || item.id,
         category_id: item.category_id || null,
-        price: Number(item.price),
-        subtotal: Number(item.subtotal),
-        quantity: Number(item.quantity)
+        price: Number(item.price) || 0,
+        subtotal: Number(item.subtotal) || 0,
+        quantity: Number(item.quantity) || 1
       }));
       
       const response = await publicAPI.validateDiscount(discountCode, getSubtotal(), items);
