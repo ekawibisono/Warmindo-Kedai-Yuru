@@ -12,6 +12,7 @@ const Orders = () => {
     const [detailLoading, setDetailLoading] = useState(false);
     const [filter, setFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [sourceFilter, setSourceFilter] = useState('all'); // Filter untuk Online/Kasir
     // const [showMaintenance, setShowMaintenance] = useState(false);
 
     // State for confirm dialog
@@ -220,6 +221,16 @@ const Orders = () => {
         return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800', icon: '•' };
     };
 
+    // Get source info dengan emblem
+    const getSourceInfo = (source) => {
+        const sourceMap = {
+            online: { label: 'Online', color: 'bg-blue-100 text-blue-800', icon: '🌐' },
+            pos: { label: 'Kasir', color: 'bg-purple-100 text-purple-800', icon: '🏪' }
+        };
+        // Default ke online jika tidak ada source atau source tidak dikenali
+        return sourceMap[source] || sourceMap.online;
+    };
+
     // Get next actions based on current status and order type
     const getNextActions = (order) => {
         const { status, type, payment_method } = order;
@@ -423,13 +434,13 @@ const Orders = () => {
 
                 {/* Filters */}
                 <div className="card">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Tipe</label>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={() => setFilter('all')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'all'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${filter === 'all'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -438,7 +449,7 @@ const Orders = () => {
                                 </button>
                                 <button
                                     onClick={() => setFilter('delivery')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'delivery'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${filter === 'delivery'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -447,7 +458,7 @@ const Orders = () => {
                                 </button>
                                 <button
                                     onClick={() => setFilter('pickup')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'pickup'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${filter === 'pickup'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -456,7 +467,7 @@ const Orders = () => {
                                 </button>
                                 <button
                                     onClick={() => setFilter('takeaway')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'takeaway'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${filter === 'takeaway'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -468,10 +479,10 @@ const Orders = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button
                                     onClick={() => setStatusFilter('all')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === 'all'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${statusFilter === 'all'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -480,7 +491,7 @@ const Orders = () => {
                                 </button>
                                 <button
                                     onClick={() => setStatusFilter('active')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === 'active'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${statusFilter === 'active'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -489,7 +500,7 @@ const Orders = () => {
                                 </button>
                                 <button
                                     onClick={() => setStatusFilter('completed')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${statusFilter === 'completed'
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${statusFilter === 'completed'
                                             ? 'bg-primary-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
@@ -510,6 +521,7 @@ const Orders = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {filteredOrders.map((order) => {
                             const statusInfo = getStatusInfo(order.status, order.type);
+                            const sourceInfo = getSourceInfo(order.source);
                             const nextActions = getNextActions(order);
 
                             return (
@@ -531,6 +543,10 @@ const Orders = () => {
                                                     : 'bg-green-100 text-green-800'
                                             }`}>
                                                 {order.payment_method === 'qris' ? '💳 QRIS' : '💵 CASH'}
+                                            </span>
+                                            {/* Source Badge */}
+                                            <span className={`inline-block ml-1 px-2 py-1 rounded text-xs font-medium ${sourceInfo.color}`}>
+                                                {sourceInfo.icon} {sourceInfo.label}
                                             </span>
                                         </div>
                                     </div>
@@ -638,6 +654,17 @@ const Orders = () => {
                                             }`}>
                                                 {selectedOrder.order.payment_method === 'qris' ? '💳 QRIS' : '💵 CASH'}
                                             </span>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-600">Source:</p>
+                                            {(() => {
+                                                const sourceInfo = getSourceInfo(selectedOrder.order.source);
+                                                return (
+                                                    <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-medium ${sourceInfo.color}`}>
+                                                        {sourceInfo.icon} {sourceInfo.label}
+                                                    </span>
+                                                );
+                                            })()}
                                         </div>
                                         <div>
                                             <p className="text-gray-600">Customer:</p>

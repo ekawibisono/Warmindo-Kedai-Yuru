@@ -41,12 +41,17 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (staffKey) => {
     try {
+      // Bersihkan localStorage dulu untuk mencegah data lama
+      localStorage.removeItem('staff_user');
+      localStorage.removeItem('staff_key');
+      setUser(null);
+
       // Verify ke backend dan dapatkan info staff
       const response = await api.post('/staff/auth/verify', {}, {
         headers: { 'x-staff-key': staffKey }
       });
       
-      // Simpan info staff dari backend
+      // Simpan info staff dari backend hanya jika verifikasi berhasil
       const staffInfo = response.data.staff;
       const userData = {
         id: staffInfo.id,
@@ -60,10 +65,18 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('staff_user', JSON.stringify(userData));
       localStorage.setItem('staff_key', staffKey);
       setUser(userData);
+      
+      console.log('✅ Login berhasil:', userData.username);
       return true;
     } catch (error) {
       // 401 atau error lainnya = staff key tidak valid
-      console.error('Login failed:', error);
+      console.error('❌ Login gagal:', error.response?.data?.message || error.message);
+      
+      // Pastikan localStorage dan state dibersihkan jika login gagal
+      localStorage.removeItem('staff_user');
+      localStorage.removeItem('staff_key');
+      setUser(null);
+      
       return false;
     }
   };
