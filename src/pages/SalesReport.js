@@ -17,6 +17,7 @@ const SalesReport = () => {
     const [statusFilter, setStatusFilter] = useState('completed');
     const [typeFilter, setTypeFilter] = useState('all');
     const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Summary stats
     const [summary, setSummary] = useState({
@@ -44,7 +45,7 @@ const SalesReport = () => {
     useEffect(() => {
         applyFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orders, dateFilter, customStartDate, customEndDate, statusFilter, typeFilter, paymentMethodFilter]);
+    }, [orders, dateFilter, customStartDate, customEndDate, statusFilter, typeFilter, paymentMethodFilter, searchQuery]);
 
     const fetchOrders = async () => {
         setLoading(true);
@@ -62,67 +63,80 @@ const SalesReport = () => {
     const applyFilters = () => {
         let filtered = [...orders];
 
-        // Date filter
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // Search filter - diterapkan pertama dan tidak dibatasi oleh periode
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = filtered.filter(order => {
+                const customerName = (order.customer_name || '').toLowerCase();
+                const customerPhone = (order.customer_phone || '').toLowerCase();
+                const orderNo = (order.order_no || '').toLowerCase();
+                return customerName.includes(query) || 
+                       customerPhone.includes(query) || 
+                       orderNo.includes(query);
+            });
+        } else {
+            // Date filter - hanya diterapkan jika tidak ada pencarian
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        switch (dateFilter) {
-            case 'today':
-                filtered = filtered.filter(order => {
-                    const orderDate = new Date(order.created_at);
-                    return orderDate >= today;
-                });
-                break;
-
-            case 'yesterday':
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                filtered = filtered.filter(order => {
-                    const orderDate = new Date(order.created_at);
-                    return orderDate >= yesterday && orderDate < today;
-                });
-                break;
-
-            case 'this_week':
-                const weekStart = new Date(today);
-                weekStart.setDate(today.getDate() - today.getDay());
-                filtered = filtered.filter(order => {
-                    const orderDate = new Date(order.created_at);
-                    return orderDate >= weekStart;
-                });
-                break;
-
-            case 'this_month':
-                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-                filtered = filtered.filter(order => {
-                    const orderDate = new Date(order.created_at);
-                    return orderDate >= monthStart;
-                });
-                break;
-
-            case 'last_month':
-                const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                filtered = filtered.filter(order => {
-                    const orderDate = new Date(order.created_at);
-                    return orderDate >= lastMonthStart && orderDate <= lastMonthEnd;
-                });
-                break;
-
-            case 'custom':
-                if (customStartDate && customEndDate) {
-                    const start = new Date(customStartDate);
-                    const end = new Date(customEndDate);
-                    end.setHours(23, 59, 59, 999);
+            switch (dateFilter) {
+                case 'today':
                     filtered = filtered.filter(order => {
                         const orderDate = new Date(order.created_at);
-                        return orderDate >= start && orderDate <= end;
+                        return orderDate >= today;
                     });
-                }
-                break;
+                    break;
 
-            default:
-                break;
+                case 'yesterday':
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    filtered = filtered.filter(order => {
+                        const orderDate = new Date(order.created_at);
+                        return orderDate >= yesterday && orderDate < today;
+                    });
+                    break;
+
+                case 'this_week':
+                    const weekStart = new Date(today);
+                    weekStart.setDate(today.getDate() - today.getDay());
+                    filtered = filtered.filter(order => {
+                        const orderDate = new Date(order.created_at);
+                        return orderDate >= weekStart;
+                    });
+                    break;
+
+                case 'this_month':
+                    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    filtered = filtered.filter(order => {
+                        const orderDate = new Date(order.created_at);
+                        return orderDate >= monthStart;
+                    });
+                    break;
+
+                case 'last_month':
+                    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+                    filtered = filtered.filter(order => {
+                        const orderDate = new Date(order.created_at);
+                        return orderDate >= lastMonthStart && orderDate <= lastMonthEnd;
+                    });
+                    break;
+
+                case 'custom':
+                    if (customStartDate && customEndDate) {
+                        const start = new Date(customStartDate);
+                        const end = new Date(customEndDate);
+                        end.setHours(23, 59, 59, 999);
+                        filtered = filtered.filter(order => {
+                            const orderDate = new Date(order.created_at);
+                            return orderDate >= start && orderDate <= end;
+                        });
+                    }
+                    break;
+
+                default:
+                    break;
+            }
         }
 
         // Status filter
@@ -346,14 +360,42 @@ const SalesReport = () => {
                         </button>
                     </div>
 
+                    {/* Search Bar */}
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">🔎 Cari Customer (Semua Periode)</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Cari nama, nomor telepon, atau nomor order dari semua data..."
+                                className="input-field pl-10"
+                            />
+                        </div>
+                        {searchQuery && (
+                            <div className="mt-1 text-xs text-green-600 bg-green-50 p-2 rounded">
+                                💡 Pencarian "{searchQuery}" mencakup SEMUA data tanpa batasan periode ({filteredOrders.length} hasil ditemukan)
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* Date Filter */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Periode</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Periode 
+                                {searchQuery && <span className="text-xs text-orange-600"> (diabaikan saat search)</span>}
+                            </label>
                             <select
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value)}
-                                className="input-field"
+                                className={`input-field ${searchQuery ? 'opacity-50' : ''}`}
+                                disabled={!!searchQuery}
                             >
                                 <option value="today">Hari Ini</option>
                                 <option value="yesterday">Kemarin</option>
@@ -412,7 +454,7 @@ const SalesReport = () => {
                     </div>
 
                     {/* Custom Date Range */}
-                    {dateFilter === 'custom' && (
+                    {dateFilter === 'custom' && !searchQuery && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Tanggal Mulai</label>
