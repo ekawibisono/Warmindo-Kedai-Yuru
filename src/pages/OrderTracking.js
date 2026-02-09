@@ -466,7 +466,7 @@ const OrderTracking = () => {
   };
 
   const getWhatsAppLink = (orderNumber, customerName) => {
-    const waNumber = process.env.REACT_APP_WHATSAPP_NUMBER || '6285881315824';
+    const waNumber = process.env.REACT_APP_WHATSAPP_NUMBER || '6282324975131';
     const message = 'Halo Kak, Mau Menanyakan Tentang Pesanan Saya\n\nOrder ID: ' + orderNumber + '\nNama: ' + customerName;
     return 'https://wa.me/' + waNumber + '?text=' + encodeURIComponent(message);
   };

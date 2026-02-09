@@ -682,7 +682,7 @@ const CustomerMenu = () => {
 
             {/* WhatsApp Contact */}
             <a
-              href={`https://wa.me/${process.env.REACT_APP_WHATSAPP_NUMBER}`}
+              href={`https://wa.me/${process.env.REACT_APP_WHATSAPP_NUMBER || '6282324975131'}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm text-gray-600 hover:text-green-600 transition-colors group"

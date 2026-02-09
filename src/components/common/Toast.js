@@ -1,5 +1,5 @@
 import React from 'react';
-import { toast, ToastContainer } from 'react-toastify';
+import toast, { Toaster } from 'react-hot-toast';
 
 // Detect if device is mobile/tablet with more accurate detection
 const isMobile = () => {
@@ -35,20 +35,14 @@ const getResponsiveOptions = () => {
     
     return {
         position: getPosition(),
-        autoClose: isMobileDevice ? 4000 : (isTabletDevice ? 3500 : 3000),
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: !isMobileDevice, // Disable hover on mobile, enable on tablet/desktop
-        draggable: !isMobileDevice, // Disable drag on mobile, enable on tablet/desktop
-        progress: undefined,
-        limit: isMobileDevice ? 3 : (isTabletDevice ? 4 : 5), // Fewer toasts on smaller screens
+        duration: isMobileDevice ? 4000 : (isTabletDevice ? 3500 : 3000),
         style: isMobileDevice ? {
             fontSize: '14px',
             padding: '16px',
-            margin: '8px 16px', // Side margins on mobile
             borderRadius: '12px',
             maxWidth: 'calc(100vw - 32px)', // Responsive width
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            margin: '8px'
         } : isTabletDevice ? {
             fontSize: '14px',
             padding: '14px 16px',
@@ -57,32 +51,65 @@ const getResponsiveOptions = () => {
             boxShadow: '0 3px 10px rgba(0,0,0,0.12)'
         } : {
             borderRadius: '8px',
-            fontSize: '14px'
-        },
-        bodyClassName: isMobileDevice ? 'mobile-toast-body' : (isTabletDevice ? 'tablet-toast-body' : ''),
-        toastClassName: isMobileDevice ? 'mobile-toast' : (isTabletDevice ? 'tablet-toast' : '')
+            fontSize: '14px',
+            padding: '16px'
+        }
     };
 };
 
 const notify = {
     success: (message, options = {}) => {
         const responsiveOptions = getResponsiveOptions();
-        toast.success(message, { ...responsiveOptions, ...options });
+        return toast.success(message, { 
+            ...responsiveOptions, 
+            style: {
+                ...responsiveOptions.style,
+                background: '#FFFFFF',
+                color: 'black'
+            },
+            ...options 
+        });
     },
 
     error: (message, options = {}) => {
         const responsiveOptions = getResponsiveOptions();
-        toast.error(message, { ...responsiveOptions, ...options });
+        return toast.error(message, { 
+            ...responsiveOptions, 
+            style: {
+                ...responsiveOptions.style,
+                background: '#FFFFFF',
+                color: 'black'
+            },
+            ...options 
+        });
     },
 
     info: (message, options = {}) => {
         const responsiveOptions = getResponsiveOptions();
-        toast.info(message, { ...responsiveOptions, ...options });
+        return toast(message, { 
+            ...responsiveOptions, 
+            icon: 'ℹ️',
+            style: {
+                ...responsiveOptions.style,
+                background: '#FFFFFF',
+                color: 'black'
+            },
+            ...options 
+        });
     },
 
     warning: (message, options = {}) => {
         const responsiveOptions = getResponsiveOptions();
-        toast.warning(message, { ...responsiveOptions, ...options });
+        return toast(message, { 
+            ...responsiveOptions, 
+            icon: '⚠️',
+            style: {
+                ...responsiveOptions.style,
+                background: '#FFFFFF',
+                color: 'black'
+            },
+            ...options 
+        });
     },
 
     loading: (message, options = {}) => {
@@ -95,16 +122,12 @@ const notify = {
         return toast.promise(
             promise,
             {
-                pending: messages.pending || 'Memproses...',
+                loading: messages.pending || 'Memproses...',
                 success: messages.success || 'Berhasil!',
                 error: messages.error || 'Gagal!',
             },
             { ...responsiveOptions, ...options }
         );
-    },
-
-    update: (toastId, options) => {
-        toast.update(toastId, options);
     },
 
     dismiss: (toastId) => {
@@ -154,8 +177,26 @@ if (typeof window !== 'undefined') {
 
 // Toast React Component
 const Toast = () => {
-    const responsiveOptions = getResponsiveOptions();
-    return <ToastContainer {...responsiveOptions} />;
+    const isMobileDevice = isMobile();
+    return (
+        <Toaster
+            position={getPosition()}
+            reverseOrder={false}
+            gutter={8}
+            containerClassName=""
+            containerStyle={{
+                margin: isMobileDevice ? '8px' : '16px',
+            }}
+            toastOptions={{
+                duration: isMobileDevice ? 4000 : 3000,
+                style: {
+                    fontSize: isMobileDevice ? '14px' : '16px',
+                    maxWidth: isMobileDevice ? 'calc(100vw - 32px)' : '400px',
+                    borderRadius: '8px',
+                },
+            }}
+        />
+    );
 };
 
 export { notify };

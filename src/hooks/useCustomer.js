@@ -20,7 +20,6 @@ export const useCustomer = () => {
       await refreshCustomer();
       return true;
     } catch (error) {
-      console.error('Error updating phone:', error);
       notify.error(error.response?.data?.error || 'Gagal memperbarui nomor telepon');
       return false;
     } finally {
@@ -33,7 +32,6 @@ export const useCustomer = () => {
       await logout();
       notify.success('Berhasil keluar dari akun');
     } catch (error) {
-      console.error('Error during logout:', error);
       notify.error('Gagal keluar dari akun');
     }
   };
@@ -44,7 +42,6 @@ export const useCustomer = () => {
       notify.success('Berhasil masuk ke akun');
       return true;
     } catch (error) {
-      console.error('Error during login:', error);
       notify.error(error.response?.data?.error || 'Gagal masuk ke akun');
       return false;
     }

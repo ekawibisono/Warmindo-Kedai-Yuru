@@ -4,8 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
 import { CustomerAuthProvider } from './contexts/CustomerAuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import Toast from './components/common/Toast';
 
 // Pages
 import Login from './pages/Login';
@@ -188,22 +187,7 @@ function App() {
           <Route path="/" element={<Navigate to="/menu" replace />} />
           <Route path="*" element={<Navigate to="/menu" replace />} />
         </Routes>
-        <ToastContainer
-          position={window.innerWidth <= 768 ? "top-center" : "top-center"}
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss={window.innerWidth > 768}
-          pauseOnHover={window.innerWidth > 768}
-          draggable={window.innerWidth > 768}
-          theme="light"
-          limit={window.innerWidth <= 768 ? 3 : 5}
-          style={{
-            fontSize: '14px'
-          }}
-        />
+        <Toast />
       </Router>
     </AuthProvider>
   </CustomerAuthProvider>
