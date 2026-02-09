@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -6,13 +7,13 @@ import Receipt from '../components/admin/Receipt';
 import { notify } from '../components/common/Toast';
 
 const Orders = () => {
+    const navigate = useNavigate();
     const [orders, setOrders] = useState([]);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [loading, setLoading] = useState(true);
     const [detailLoading, setDetailLoading] = useState(false);
     const [filter, setFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [sourceFilter, setSourceFilter] = useState('all'); // Filter untuk Online/Kasir
     // const [showMaintenance, setShowMaintenance] = useState(false);
 
     // State for confirm dialog
@@ -67,7 +68,7 @@ const Orders = () => {
             },
             'verify_payment': {
                 title: 'Verifikasi Pembayaran QRIS?',
-                message: `Redirect ke halaman verifikasi pembayaran untuk pesanan ${orderNo}?`
+                message: `Lanjut ke halaman verifikasi pembayaran untuk pesanan ${orderNo}?`
             },
             'confirmed': {
                 title: 'Konfirmasi Pesanan?',
@@ -144,10 +145,9 @@ const Orders = () => {
         try {
             // Handle special case for payment verification
             if (confirmDialog.status === 'verify_payment') {
-                // Redirect to payment verification page
-                const paymentVerificationUrl = `/admin/payments?order=${confirmDialog.orderNo}`;
-                window.open(paymentVerificationUrl, '_blank');
-                notify.success('Membuka halaman verifikasi pembayaran');
+                // Navigate to payment verification page in the same tab
+                navigate(`/admin/payments?order=${confirmDialog.orderNo}`);
+                notify.success('Menuju halaman verifikasi pembayaran');
                 closeConfirmDialog();
                 return;
             }
@@ -805,7 +805,7 @@ const Orders = () => {
                     confirmDialog.status === 'cancelled' 
                         ? 'Ya, Tolak' 
                         : confirmDialog.status === 'verify_payment'
-                            ? 'Ya, Buka Verifikasi'
+                            ? 'Ya, Lanjut'
                             : 'Ya, Lanjutkan'
                 }
                 cancelText="Batal"

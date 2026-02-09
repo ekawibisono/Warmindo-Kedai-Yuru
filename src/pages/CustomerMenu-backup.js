@@ -6,7 +6,7 @@ import Checkout from '../components/customer/Checkout';
 import Cart from '../components/customer/Cart';
 import CustomerGoogleLogin from '../components/customer/CustomerGoogleLogin';
 import CustomerHeader from '../components/customer/CustomerHeader';
-import Toast from '../components/common/Toast';
+import { notify } from '../components/common/Toast';
 
 const CustomerMenu = () => {
   // eslint-disable-next-line no-unused-vars
@@ -60,8 +60,7 @@ const CustomerMenu = () => {
         }
       });
     } catch (error) {
-      console.error('Error fetching menu:', error);
-      Toast.error('❌ Gagal memuat menu. Silakan refresh halaman.');
+      notify.error('❌ Gagal memuat menu. Silakan refresh halaman.');
     } finally {
       setLoading(false);
     }
@@ -99,7 +98,7 @@ const CustomerMenu = () => {
 
   const handleSelectProduct = (product) => {
     if (isStoreClosed) {
-      alert('Maaf, toko sedang tutup. Silakan coba lagi nanti.');
+      notify.error('🔒 Toko sedang tutup. Maaf, saat ini kami tidak menerima pesanan.');
       return;
     }
 
@@ -237,7 +236,7 @@ const CustomerMenu = () => {
 
   const handleOpenCheckout = () => {
     if (isStoreClosed) {
-      alert('Maaf, toko sedang tutup. Silakan coba lagi nanti.');
+      notify.error('🔒 Toko sedang tutup. Maaf, saat ini kami tidak menerima pesanan.');
       return;
     }
     setShowCart(false);

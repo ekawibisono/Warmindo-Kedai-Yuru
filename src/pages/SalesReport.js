@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
 import { notify } from '../components/common/Toast';
+import * as XLSX from 'xlsx';
 
 const SalesReport = () => {
     const [loading, setLoading] = useState(true);
@@ -211,73 +212,89 @@ const SalesReport = () => {
         }
     };
 
-    const exportToCSV = () => {
+    const exportToExcel = () => {
         if (filteredOrders.length === 0) {
             notify.warning('Tidak ada data untuk diexport');
             return;
         }
 
-        // Prepare CSV headers
-        const headers = [
-            'Order No',
-            'Tanggal',
-            'Customer',
-            'Phone',
-            'Tipe',
-            'Payment Method',
-            'Status',
-            'Subtotal',
-            'Diskon',
-            'Pajak',
-            'Grand Total'
+        // Prepare data for Excel
+        const ordersData = filteredOrders.map(order => ({
+            'Order No': order.order_no,
+            'Tanggal': formatDate(order.created_at),
+            'Customer': order.customer_name || '-',
+            'Phone': order.customer_phone || '-',
+            'Tipe': order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery',
+            'Payment Method': order.payment_method === 'cash' ? 'Cash' : 'QRIS',
+            'Status': order.status,
+            'Subtotal': order.subtotal || 0,
+            'Diskon': order.discount_total || 0,
+            'Pajak': order.tax_total || 0,
+            'Grand Total': order.grand_total
+        }));
+
+        // Prepare summary data
+        const summaryData = [
+            { 'Item': 'Total Orders', 'Value': filteredOrders.length },
+            { 'Item': 'Total Revenue (Completed)', 'Value': summary.totalRevenue },
+            { 'Item': 'Average Order Value', 'Value': summary.averageOrder },
+            { 'Item': 'Cash Orders', 'Value': summary.cashOrders },
+            { 'Item': 'QRIS Orders', 'Value': summary.qrisOrders },
+            { 'Item': 'Pickup Orders', 'Value': summary.pickupOrders },
+            { 'Item': 'TakeAway Orders', 'Value': summary.takeawayOrders },
+            { 'Item': 'Delivery Orders', 'Value': summary.deliveryOrders }
         ];
 
-        // Prepare CSV rows
-        const rows = filteredOrders.map(order => [
-            order.order_no,
-            formatDate(order.created_at),
-            order.customer_name || '-',
-            order.customer_phone || '-',
-            order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery',
-            order.payment_method === 'cash' ? 'Cash' : 'QRIS',
-            order.status,
-            order.subtotal || 0,
-            order.discount_total || 0,
-            order.tax_total || 0,
-            order.grand_total
-        ]);
+        // Create workbook and worksheets
+        const workbook = XLSX.utils.book_new();
+        
+        // Orders worksheet
+        const ordersWorksheet = XLSX.utils.json_to_sheet(ordersData);
+        XLSX.utils.book_append_sheet(workbook, ordersWorksheet, 'Orders');
+        
+        // Summary worksheet
+        const summaryWorksheet = XLSX.utils.json_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Summary');
+        
+        // Style the headers (optional - basic styling)
+        const ordersRange = XLSX.utils.decode_range(ordersWorksheet['!ref']);
+        for (let col = ordersRange.s.c; col <= ordersRange.e.c; col++) {
+            const headerCell = ordersWorksheet[XLSX.utils.encode_cell({ r: 0, c: col })];
+            if (headerCell) {
+                headerCell.s = {
+                    font: { bold: true },
+                    fill: { fgColor: { rgb: "CCCCCC" } }
+                };
+            }
+        }
+        
+        // Set column widths
+        ordersWorksheet['!cols'] = [
+            { width: 15 }, // Order No
+            { width: 20 }, // Tanggal
+            { width: 20 }, // Customer
+            { width: 15 }, // Phone
+            { width: 12 }, // Tipe
+            { width: 15 }, // Payment Method
+            { width: 12 }, // Status
+            { width: 12 }, // Subtotal
+            { width: 10 }, // Diskon
+            { width: 10 }, // Pajak
+            { width: 15 }  // Grand Total
+        ];
+        
+        summaryWorksheet['!cols'] = [
+            { width: 25 }, // Item
+            { width: 20 }  // Value
+        ];
 
-        // Add summary row
-        rows.push([]);
-        rows.push(['SUMMARY']);
-        rows.push(['Total Orders', filteredOrders.length]);
-        rows.push(['Total Revenue (Completed)', formatRupiah(summary.totalRevenue)]);
-        rows.push(['Average Order Value', formatRupiah(summary.averageOrder)]);
-        rows.push(['Cash Orders', summary.cashOrders]);
-        rows.push(['QRIS Orders', summary.qrisOrders]);
-        rows.push(['Pickup Orders', summary.pickupOrders]);
-        rows.push(['TakeAway Orders', summary.takeawayOrders]);
-        rows.push(['Delivery Orders', summary.deliveryOrders]);
+        // Generate filename with timestamp
+        const filename = `sales-report-${dateFilter}-${new Date().toISOString().split('T')[0]}.xlsx`;
 
-        // Convert to CSV string
-        const csvContent = [
-            headers.join(','),
-            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-        ].join('\n');
-
-        // Create and download file
-        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-
-        const filename = `sales-report-${dateFilter}-${new Date().toISOString().split('T')[0]}.csv`;
-
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Write and download file
+        XLSX.writeFile(workbook, filename);
+        
+        notify.success('Report Excel berhasil didownload!');
     };
 
     const getStatusColor = (status) => {
@@ -334,13 +351,13 @@ const SalesReport = () => {
                                 <span className="sm:hidden">Refresh</span>
                             </button>
                             <button
-                                onClick={exportToCSV}
+                                onClick={exportToExcel}
                                 className="btn-primary flex items-center justify-center"
                             >
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                Export CSV
+                                Export Excel
                             </button>
                         </div>
                     </div>
