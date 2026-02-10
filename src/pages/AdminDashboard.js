@@ -202,12 +202,30 @@ const AdminDashboard = () => {
     return ((current - previous) / previous * 100).toFixed(1);
   };
 
+  const getStatusLabel = (status) => {
+    const labels = {
+      pending: 'Menunggu Pembayaran',
+      paid: 'Sudah Dibayar',
+      confirmed: 'Dikonfirmasi',
+      preparing: 'Sedang Diproses',
+      ready: 'Siap',
+      waiting_pickup: 'Menunggu Pickup',
+      delivering: 'Sedang Dikirim',
+      completed: 'Selesai',
+      cancelled: 'Dibatalkan'
+    };
+    return labels[status] || status;
+  };
+
   const getStatusColor = (status) => {
     const colors = {
       pending: 'bg-yellow-100 text-yellow-800',
+      paid: 'bg-blue-100 text-blue-800',
       confirmed: 'bg-blue-100 text-blue-800',
       preparing: 'bg-orange-100 text-orange-800',
       ready: 'bg-purple-100 text-purple-800',
+      waiting_pickup: 'bg-indigo-100 text-indigo-800',
+      delivering: 'bg-cyan-100 text-cyan-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800'
     };
@@ -413,7 +431,7 @@ const AdminDashboard = () => {
                       <div className="text-right">
                         <div className="font-bold text-gray-900 text-sm">{formatRupiah(order.grand_total)}</div>
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full mt-1 ${getStatusColor(order.status)}`}>
-                          {order.status}
+                          {getStatusLabel(order.status)}
                         </span>
                       </div>
                     </div>
@@ -460,7 +478,7 @@ const AdminDashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                          {order.status}
+                          {getStatusLabel(order.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

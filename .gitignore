@@ -9,6 +9,10 @@ node_modules/
 # Production
 /build
 /build1
+.wwebjs_cache/
+wa-session/
+*.zip
+*.rar
 
 # Misc
 .DS_Store

@@ -222,8 +222,16 @@ export const staffAPI = {
   sendWhatsAppMessage: (data) => api.post('/whatsapp/send', data),
   // Send bulk WhatsApp message
   sendWhatsAppBulk: (data) => api.post('/whatsapp/send-bulk', data),
-  // Get WhatsApp device info
+  // Get WhatsApp device info (supports both fonnte & self-hosted)
   getWhatsAppDevice: () => api.get('/whatsapp/device'),
+  // Restart WhatsApp service (self-hosted only)
+  reconnectWhatsApp: () => api.post('/whatsapp/reconnect'),
+  // Logout from WhatsApp (self-hosted only)
+  logoutWhatsApp: () => api.post('/whatsapp/logout'),
+  // Get message usage statistics (anti-ban monitoring)
+  getWhatsAppMessageStats: () => api.get('/whatsapp/message-stats'),
+  // Get comprehensive WhatsApp status
+  getWhatsAppStatus: () => api.get('/whatsapp/status'),
   // Validate WhatsApp number
   validateWhatsAppNumber: (number) => api.post('/whatsapp/validate', { number }),
 
