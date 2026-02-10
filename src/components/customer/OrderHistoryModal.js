@@ -286,6 +286,21 @@ const OrderHistoryModal = ({ onClose }) => {
                         <span className="font-medium uppercase text-xs bg-gray-100 px-2 py-1 rounded-md">
                           {order.payment_method}
                         </span>
+                        
+                        {/* Points Earned - Show if order has points */}
+                        {order.points_earned > 0 && (
+                          <>
+                            <div className="w-px h-3 md:h-4 bg-gray-300"></div>
+                            <div className="flex items-center space-x-1">
+                              <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
+                                <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                </svg>
+                              </div>
+                              <span className="text-xs md:text-sm text-purple-600 font-medium">+{order.points_earned} poin</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       
                       <div className="flex items-center">

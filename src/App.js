@@ -5,6 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { CustomerAuthProvider } from './contexts/CustomerAuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import Toast from './components/common/Toast';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Pages
 import Login from './pages/Login';
@@ -24,16 +25,18 @@ import WhatsAppSettings from './pages/WhatsAppSettings';
 import Discounts from './pages/Discounts';
 import HotDeals from './pages/HotDeals';
 import StaffManagement from './pages/StaffManagement';
+import CustomerPointsManagement from './pages/CustomerPointsManagement';
 import POSCounter from './pages/POSCounter';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 
 function App() {
   return (
-    <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID || ''}>
-      <CustomerAuthProvider>
-        <AuthProvider>
-          <Router>
+    <ErrorBoundary>
+      <GoogleOAuthProvider clientId={process.env.REACT_APP_GOOGLE_CLIENT_ID || ''}>
+        <CustomerAuthProvider>
+          <AuthProvider>
+            <Router>
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
@@ -182,6 +185,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/customer-points"
+            element={
+              <ProtectedRoute>
+                <CustomerPointsManagement />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Default Route */}
           <Route path="/" element={<Navigate to="/menu" replace />} />
@@ -192,6 +203,7 @@ function App() {
     </AuthProvider>
   </CustomerAuthProvider>
   </GoogleOAuthProvider>
+  </ErrorBoundary>
   );
 }
 

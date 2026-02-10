@@ -119,6 +119,24 @@ export const publicAPI = {
     });
   },
 
+  // Customer Points System
+  getCustomerPointsSummary: () => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/points/summary', {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
+  getCustomerPointsHistory: (page = 1, limit = 20) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/points/history', {
+      headers: { 'Authorization': `Bearer ${customerToken}` },
+      params: { page, limit }
+    });
+  },
+
 };
 
 // Staff API (Admin & Kasir)
@@ -252,6 +270,24 @@ export const staffAPI = {
   // ========== CUSTOMER SEARCH API (NEW) ==========
   // Search existing customers for POS integration
   searchCustomers: (query) => api.get(`/staff/customers/search?q=${encodeURIComponent(query)}`),
+
+  // ========== CUSTOMER POINTS MANAGEMENT API (NEW) ==========
+  // Get list of customers with their points
+  getCustomerPointsList: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.page) params.append('page', filters.page);
+    if (filters.limit) params.append('limit', filters.limit);
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.minPoints) params.append('minPoints', filters.minPoints);
+    return api.get(`/staff/customer-points?${params.toString()}`);
+  },
+  // Get customer points history (admin view)
+  getCustomerPointsHistory: (customerId, page = 1, limit = 20) => 
+    api.get(`/staff/customer-points/${customerId}/history?page=${page}&limit=${limit}`),
+  // Adjust customer points manually
+  adjustCustomerPoints: (customerId, data) => 
+    api.post(`/staff/customer-points/${customerId}/adjust`, data),
 
 };
 

@@ -168,6 +168,7 @@ const Orders = () => {
 
     const getStatusInfo = (status, type) => {
         const isDelivery = type === 'delivery';
+        const isDineIn = type === 'dine_in';
         const statusMap = {
             pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800', icon: '⏳' },
             confirmed: { label: 'Confirmed', color: 'bg-blue-100 text-blue-800', icon: '✓' },
@@ -188,12 +189,12 @@ const Orders = () => {
                 icon: '✓'
             },
             waiting_pickup: {
-                label: 'Menunggu Diambil',
+                label: isDineIn ? 'Menunggu Disajikan' : 'Menunggu Diambil',
                 color: 'bg-blue-100 text-blue-800',
-                icon: '🏪'
+                icon: isDineIn ? '🍽️' : '🏪'
             },
             picked_up: {
-                label: 'Sudah Diambil',
+                label: isDineIn ? 'Sudah Disajikan' : 'Sudah Diambil',
                 color: 'bg-green-100 text-green-800',
                 icon: '✓'
             },
@@ -319,20 +320,21 @@ const Orders = () => {
             }
         }
 
-        // Pickup specific
+        // Pickup and Dine-in specific
         if (!isDelivery) {
+            const isDineIn = type === 'dine_in';
             if (status === 'ready') {
                 actions.push({
-                    label: 'Tunggu Diambil',
+                    label: isDineIn ? 'Siap Disajikan' : 'Tunggu Diambil',
                     status: 'waiting_pickup',
                     className: 'bg-blue-600 hover:bg-blue-700',
-                    icon: '🏪'
+                    icon: isDineIn ? '🍽️' : '🏪'
                 });
             }
 
             if (status === 'waiting_pickup') {
                 actions.push({
-                    label: 'Sudah Diambil',
+                    label: isDineIn ? 'Sudah Disajikan' : 'Sudah Diambil',
                     status: 'picked_up',
                     className: 'bg-green-600 hover:bg-green-700',
                     icon: '✓'
@@ -474,6 +476,15 @@ const Orders = () => {
                                 >
                                     🥡 TakeAway
                                 </button>
+                                <button
+                                    onClick={() => setFilter('dine_in')}
+                                    className={`px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${filter === 'dine_in'
+                                            ? 'bg-primary-600 text-white'
+                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    🍽️ Dine-in
+                                </button>
                             </div>
                         </div>
 
@@ -554,9 +565,9 @@ const Orders = () => {
                                     <div className="space-y-2 text-sm mb-4">
                                         <div className="flex items-center text-gray-600">
                                             <span className="mr-2">
-                                                {order.type === 'delivery' ? '🚗' : order.type === 'takeaway' ? '🥡' : '📦'}
+                                                {order.type === 'delivery' ? '🚗' : order.type === 'takeaway' ? '🥡' : order.type === 'dine_in' ? '🍽️' : '📦'}
                                             </span>
-                                            <span>{order.type === 'delivery' ? 'Delivery' : order.type === 'takeaway' ? 'TakeAway' : 'Pickup'}</span>
+                                            <span>{order.type === 'delivery' ? 'Delivery' : order.type === 'takeaway' ? 'TakeAway' : order.type === 'dine_in' ? 'Dine-in' : 'Pickup'}</span>
                                         </div>
                                         <div className="flex items-center text-gray-600">
                                             <span className="mr-2">📞</span>
@@ -640,9 +651,11 @@ const Orders = () => {
                                             <p className="text-gray-600">Type:</p>
                                             <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${selectedOrder.order.type === 'delivery'
                                                     ? 'bg-blue-100 text-blue-800'
-                                                    : 'bg-green-100 text-green-800'
-                                                }`}>
-                                                {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : selectedOrder.order.type === 'takeaway' ? '🥡 TakeAway' : '📦 Pickup'}
+                                                : selectedOrder.order.type === 'dine_in' 
+                                                ? 'bg-purple-100 text-purple-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                            }`}>
+                                                {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : selectedOrder.order.type === 'takeaway' ? '🥡 TakeAway' : selectedOrder.order.type === 'dine_in' ? '🍽️ Dine-in' : '📦 Pickup'}
                                             </span>
                                         </div>
                                         <div>

@@ -520,6 +520,55 @@ const OrderTracking = () => {
     ];
   };
 
+  const getDineInTimeline = (paymentMethod) => {
+    const isQRIS = paymentMethod === 'qris';
+    
+    return [
+      {
+        status: 'pending',
+        label: isQRIS ? 'Memproses Verifikasi Pembayaran' : 'Memproses Konfirmasi Ke Dapur',
+        icon: '⏳',
+        description: isQRIS ? 'Menunggu verifikasi bukti transfer QRIS' : 'Mengirim pesanan ke dapur'
+      },
+      {
+        status: 'confirmed',
+        label: isQRIS ? 'Pembayaran Terkonfirmasi' : 'Konfirmasi Diterima',
+        icon: '✓',
+        description: isQRIS ? 'Pembayaran sudah dikonfirmasi' : 'Pesanan diterima dapur'
+      },
+      {
+        status: 'preparing',
+        label: 'Memasak Pesanan Anda',
+        icon: '🍳',
+        description: 'Chef sedang memasak pesanan Anda dengan sepenuh hati'
+      },
+      {
+        status: 'ready',
+        label: 'Pesanan Anda Sudah Siap',
+        icon: '✓',
+        description: 'Pesanan Anda sudah siap untuk disajikan'
+      },
+      {
+        status: 'waiting_pickup',
+        label: 'Menunggu Untuk Disajikan',
+        icon: '🍽️',
+        description: 'Pesanan menunggu untuk disajikan ke meja Anda'
+      },
+      {
+        status: 'picked_up',
+        label: 'Pesanan Sudah Disajikan',
+        icon: '✓',
+        description: 'Pesanan telah disajikan ke meja Anda'
+      },
+      {
+        status: 'completed',
+        label: 'Terselesaikan',
+        icon: '🎉',
+        description: 'Pesanan selesai. Selamat menikmati!'
+      }
+    ];
+  };
+
   const getPickupTimeline = (paymentMethod) => {
     const isQRIS = paymentMethod === 'qris';
     
@@ -597,6 +646,8 @@ const OrderTracking = () => {
     
     if (orderType === 'delivery') {
       return getDeliveryTimeline(paymentMethod);
+    } else if (orderType === 'dine_in') {
+      return getDineInTimeline(paymentMethod);
     } else {
       return getPickupTimeline(paymentMethod);
     }
@@ -962,8 +1013,8 @@ const OrderTracking = () => {
                   <h3 className="text-lg font-bold text-gray-900">{order.order_no}</h3>
                   <p className="text-sm text-gray-600">{formatDate(order.created_at)}</p>
                 </div>
-                <span className={'px-4 py-2 rounded-full text-sm font-medium ' + (order.type === 'delivery' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800')}>
-                  {order.type === 'delivery' ? '🚗 Delivery' : '🏪 Pickup'}
+                <span className={'px-4 py-2 rounded-full text-sm font-medium ' + (order.type === 'delivery' ? 'bg-blue-100 text-blue-800' : order.type === 'dine_in' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800')}>
+                  {order.type === 'delivery' ? '🚗 Delivery' : order.type === 'dine_in' ? '🍽️ Dine-in' : '🏪 Pickup'}
                 </span>
               </div>
 
