@@ -201,6 +201,9 @@ export const staffAPI = {
     return api.get(`/staff/orders${queryString ? '?' + queryString : ''}`);
   },
 
+  // Delete order (only for draft status)
+  deleteOrder: (orderId) => api.delete(`/staff/orders/${orderId}`),
+
   // Store Settings
   getStoreSettings: () => api.get('/staff/settings'),
   getStoreStatus: () => api.get('/staff/settings/status'),

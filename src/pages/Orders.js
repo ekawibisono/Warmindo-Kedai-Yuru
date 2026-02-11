@@ -101,6 +101,10 @@ const Orders = () => {
             'completed': {
                 title: 'Selesaikan Pesanan?',
                 message: `Tandai pesanan ${orderNo} sebagai selesai?`
+            },
+            'delete': {
+                title: 'Hapus Pesanan Draft?',
+                message: `Yakin ingin menghapus pesanan draft ${orderNo}? Tindakan ini tidak dapat dibatalkan.`
             }
         };
 
@@ -151,6 +155,12 @@ const Orders = () => {
                 closeConfirmDialog();
                 return;
             }
+
+            // Handle delete order
+            if (confirmDialog.status === 'delete') {
+                await deleteOrder(confirmDialog.orderId);
+                return;
+            }
             
             const normalized = normalizeKitchenStatus(confirmDialog.status);
             await staffAPI.updateKitchenStatus(confirmDialog.orderId, normalized);
@@ -163,6 +173,23 @@ const Orders = () => {
         } catch (error) {
             console.error('Error updating status:', error);
             notify.error('Gagal mengupdate status');
+        }
+    };
+
+    const deleteOrder = async (orderId) => {
+        try {
+            await staffAPI.deleteOrder(orderId);
+            notify.success('Pesanan draft berhasil dihapus');
+            fetchOrders(); // Refresh orders list
+            
+            // Close order detail if the deleted order was selected
+            if (selectedOrder && selectedOrder.order.id === orderId) {
+                setSelectedOrder(null);
+            }
+            closeConfirmDialog();
+        } catch (error) {
+            console.error('Error deleting order:', error);
+            notify.error('Gagal menghapus pesanan. Pastikan pesanan masih dalam status draft.');
         }
     };
 
@@ -248,6 +275,16 @@ const Orders = () => {
                 status: 'verify_payment',
                 className: 'bg-yellow-600 hover:bg-yellow-700',
                 icon: '💳'
+            });
+        }
+
+        // Add delete action for draft orders
+        if (status === 'draft') {
+            actions.push({
+                label: 'Hapus Pesanan',
+                status: 'delete',
+                className: 'bg-red-600 hover:bg-red-700',
+                icon: '🗑️'
             });
         }
 

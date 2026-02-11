@@ -299,16 +299,19 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
             {step === 2 && 'Metode Pembayaran'}
             {step === 3 && 'Upload Bukti Pembayaran'}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 flex items-center gap-2"
-            disabled={loading}
-            title="Kembali ke Menu (Pesanan tetap tersimpan)"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {/* Hide close button on step 3 (QRIS payment) to prevent customer from forgetting to upload proof */}
+          {step !== 3 && (
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 flex items-center gap-2"
+              disabled={loading}
+              title="Kembali ke Menu (Pesanan tetap tersimpan)"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Info: Cart is saved */}
