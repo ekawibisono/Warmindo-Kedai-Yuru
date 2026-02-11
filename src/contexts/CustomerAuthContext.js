@@ -51,7 +51,7 @@ export const CustomerAuthProvider = ({ children }) => {
       const response = await publicAPI.getCustomerProfile();
       const updatedCustomer = response.data?.customer || response.data;
 
-      console.log('🔄 Refresh Customer Response:', updatedCustomer);
+      // console.log('🔄 Refresh Customer Response:', updatedCustomer);
       if (updatedCustomer) {
         setCustomer(updatedCustomer);
         localStorage.setItem('customer_data', JSON.stringify(updatedCustomer));
@@ -62,7 +62,7 @@ export const CustomerAuthProvider = ({ children }) => {
       const currentCustomer = JSON.parse(localStorage.getItem('customer_data') || 'null');
       return currentCustomer;
     } catch (error) {
-      console.error('❌ Refresh customer error:', error);
+      // console.error('❌ Refresh customer error:', error);
       // Handle 401 errors properly
       if (error.response?.status === 401) {
         // Always logout on 401 to clear invalid state
@@ -102,19 +102,19 @@ export const CustomerAuthProvider = ({ children }) => {
       const token = localStorage.getItem('customer_token');
       const customerData = localStorage.getItem('customer_data');
       
-      console.log('🚀 Initializing auth...');
-      console.log('📦 Customer data from localStorage:', customerData);
+      // console.log('🚀 Initializing auth...');
+      // console.log('📦 Customer data from localStorage:', customerData);
       
       if (token && customerData) {
         try {
           const parsedCustomer = JSON.parse(customerData);
-          console.log('📋 Parsed customer:', parsedCustomer);
+          // console.log('📋 Parsed customer:', parsedCustomer);
           setCustomer(parsedCustomer);
           
           // Refresh customer data from server to ensure it's up to date
-          const refreshedCustomer = await refreshCustomer(true); // silent refresh
+          await refreshCustomer(true); // silent refresh
         } catch (error) {
-          console.error('❌ Error parsing customer data:', error);
+          // console.error('❌ Error parsing customer data:', error);
           // Clear invalid data
           localStorage.removeItem('customer_token');
           localStorage.removeItem('customer_data');

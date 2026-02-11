@@ -26,6 +26,7 @@ import Discounts from './pages/Discounts';
 import HotDeals from './pages/HotDeals';
 import StaffManagement from './pages/StaffManagement';
 import CustomerPointsManagement from './pages/CustomerPointsManagement';
+import PopupBanners from './pages/PopupBanners';
 import POSCounter from './pages/POSCounter';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -140,6 +141,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <HotDeals />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/popup-banners"
+            element={
+              <ProtectedRoute>
+                <PopupBanners />
               </ProtectedRoute>
             }
           />

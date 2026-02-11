@@ -137,6 +137,10 @@ export const publicAPI = {
     });
   },
 
+  // ========== POPUP BANNER API (NEW) ==========
+  // Get active popup banner for customers
+  getActivePopupBanner: () => api.get('/public/popup-banner/active'),
+
 };
 
 // Staff API (Admin & Kasir)
@@ -288,6 +292,20 @@ export const staffAPI = {
   // Adjust customer points manually
   adjustCustomerPoints: (customerId, data) => 
     api.post(`/staff/customer-points/${customerId}/adjust`, data),
+
+  // ========== POPUP BANNER MANAGEMENT API (NEW) ==========
+  // Get all popup banners
+  getPopupBanners: () => api.get('/staff/popup-banners'),
+  // Get single popup banner
+  getPopupBannerById: (id) => api.get(`/staff/popup-banners/${id}`),
+  // Create new popup banner
+  createPopupBanner: (data) => api.post('/staff/popup-banners', data),
+  // Update popup banner
+  updatePopupBanner: (id, data) => api.put(`/staff/popup-banners/${id}`, data),
+  // Delete popup banner
+  deletePopupBanner: (id) => api.delete(`/staff/popup-banners/${id}`),
+  // Toggle popup banner status
+  togglePopupBanner: (id) => api.patch(`/staff/popup-banners/${id}/toggle`),
 
 };
 
