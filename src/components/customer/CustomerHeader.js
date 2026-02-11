@@ -27,7 +27,8 @@ const CustomerHeader = ({
     if (customer && refreshCustomer) {
       refreshCustomer(true); // silent refresh
     }
-  }, [customer?.id]); // Re-run when customer ID changes (login/logout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id]); // Only re-run when customer ID changes (login/logout)
 
   const handleLoginSuccess = (customerData) => {
     setShowLoginModal(false);
