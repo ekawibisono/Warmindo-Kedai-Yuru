@@ -4,9 +4,11 @@ import { notify } from '../components/common/Toast'; // Add toast import
 
 const AuthContext = createContext();
 
-// Konstanta untuk timeout (10 menit = 600000ms)
+// Konstanta untuk timeout - TESTING: 1 menit
+// const SESSION_TIMEOUT = 60 * 1000; // 1 menit (untuk testing)
+// const WARNING_TIMEOUT = 50 * 1000; // 50 detik (warning 10 detik sebelum logout)
 const SESSION_TIMEOUT = 10 * 60 * 1000; // 10 menit
-const WARNING_TIMEOUT = 9 * 60 * 1000; // 9 menit (warning 1 menit sebelum logout)
+const WARNING_TIMEOUT = 9 * 60 * 1000; // 9 menit
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -211,34 +213,56 @@ export const AuthProvider = ({ children }) => {
       {children}
       {/* Timeout Warning Modal */}
       {showTimeoutWarning && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-yellow-100 rounded-full">
-              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
-              Sesi Akan Berakhir
+        <div className="fixed inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center z-50">
+          {/* Nyan Cat */}
+          <div className="mb-8 animate-bounce">
+            <img 
+              src="https://raw.githubusercontent.com/gist/aviaryan/3f7c37d7af78e5bfcb4c7efa590f9cae/raw/8957088c2e31dba6d72ce86c615cb3c7bb7f0b0c/nyan-cat.gif" 
+              alt="Nyan Cat"
+              className="w-48 h-auto"
+            />
+          </div>
+          
+          {/* Warning Message */}
+          <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-2xl shadow-2xl max-w-md w-full mx-4 p-8 border border-white border-opacity-20">
+            <h3 className="text-3xl font-bold text-white text-center mb-4">
+              ⏰ Sesi Akan Berakhir
             </h3>
-            <p className="text-gray-600 text-center mb-6">
-              Sesi Anda akan berakhir dalam 1 menit karena tidak ada aktivitas. 
-              Klik "Lanjutkan" untuk memperpanjang sesi.
+            <p className="text-white text-opacity-90 text-center mb-8 text-lg">
+              Sesi Anda akan berakhir dalam 1 menit karena tidak ada aktivitas.
             </p>
-            <div className="flex space-x-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleAutoLogout}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                className="flex-1 px-6 py-3 text-sm font-medium text-white bg-red-600 bg-opacity-80 backdrop-blur rounded-lg hover:bg-opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all"
               >
-                Logout Sekarang
+                🚪 Logout Sekarang
               </button>
               <button
                 onClick={extendSession}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                className="flex-1 px-6 py-3 text-sm font-medium text-white bg-green-600 bg-opacity-80 backdrop-blur rounded-lg hover:bg-opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all"
               >
-                Lanjutkan Sesi
+                ✅ Lanjutkan Sesi
               </button>
             </div>
+          </div>
+          
+          {/* Starfield effect */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {[...Array(50)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute bg-white rounded-full animate-pulse"
+                style={{
+                  width: Math.random() * 3 + 1 + 'px',
+                  height: Math.random() * 3 + 1 + 'px',
+                  top: Math.random() * 100 + '%',
+                  left: Math.random() * 100 + '%',
+                  animationDelay: Math.random() * 2 + 's',
+                  animationDuration: Math.random() * 3 + 2 + 's'
+                }}
+              />
+            ))}
           </div>
         </div>
       )}

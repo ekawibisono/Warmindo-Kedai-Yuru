@@ -409,7 +409,7 @@ const CustomerMenu = () => {
                         className="w-7 h-7 rounded-full border border-gray-300"
                       />
                       <span className="text-xs font-medium text-primary-700 max-w-16 truncate">
-                        {customer.name.split(' ')[0]}
+                        {(customer.name || 'User').split(' ')[0]}
                       </span>
                       <svg className={`w-3 h-3 text-primary-600 transition-transform ${showMobileCustomerMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -608,7 +608,7 @@ const CustomerMenu = () => {
             <div className="mt-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white p-3 rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                 <p className="text-sm font-medium">
-                  👋 Selamat datang, {customer.name.split(' ')[0]}!
+                  👋 Selamat datang, {(customer.name || 'User').split(' ')[0]}!
                 </p>
                 <div className="text-xs opacity-90">
                   <span className="flex items-center">

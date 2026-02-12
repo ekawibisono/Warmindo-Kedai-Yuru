@@ -2,43 +2,42 @@
 const JavaScriptObfuscator = require('webpack-obfuscator');
 
 module.exports = function override(config, env) {
-  // Code Obfuscation untuk Production
+  // Code Obfuscation untuk Production (REDUCED SETTINGS untuk menghindari blank white screen)
   if (env === 'production') {
     config.plugins.push(
       new JavaScriptObfuscator(
         {
-          rotateStringArray: true,
-          stringArray: true,
-          stringArrayThreshold: 0.75,
+          // BASIC obfuscation settings - lebih aman
           compact: true,
-          controlFlowFlattening: true,
-          controlFlowFlatteningThreshold: 0.75,
-          deadCodeInjection: true,
-          deadCodeInjectionThreshold: 0.4,
-          debugProtection: false,
-          debugProtectionInterval: 0,
-          disableConsoleOutput: true,
+          controlFlowFlattening: false,  // DISABLED - sering menyebabkan issues
+          deadCodeInjection: false,      // DISABLED - bisa rusak React
+          disableConsoleOutput: false,   // ENABLED - untuk debugging production
+          debugProtection: false,        // DISABLED - allow debugging
           identifierNamesGenerator: 'hexadecimal',
-          log: false,
-          numbersToExpressions: true,
-          renameGlobals: false,
-          selfDefending: true,
+          renameGlobals: false,          // DISABLED - bisa rusak React globals
+          selfDefending: false,          // DISABLED - conflict dgn React DevTools
           simplify: true,
-          splitStrings: true,
-          splitStringsChunkLength: 10,
+          stringArray: true,
+          stringArrayThreshold: 0.5,     // REDUCED dari 0.75
+          rotateStringArray: true,
           stringArrayEncoding: ['base64'],
-          stringArrayIndexShift: true,
-          stringArrayRotate: true,
-          stringArrayShuffle: true,
-          stringArrayWrappersCount: 2,
-          stringArrayWrappersChainedCalls: true,
-          stringArrayWrappersParametersMaxCount: 4,
-          stringArrayWrappersType: 'function',
-          stringArrayThreshold: 0.75,
-          transformObjectKeys: true,
+          
+          // DISABLED aggressive settings
+          controlFlowFlatteningThreshold: 0,
+          deadCodeInjectionThreshold: 0,
+          numbersToExpressions: false,
+          splitStrings: false,
+          transformObjectKeys: false,
+          stringArrayIndexShift: false,
+          stringArrayRotate: false,
+          stringArrayShuffle: false,
+          stringArrayWrappersCount: 1,        // REDUCED
+          stringArrayWrappersChainedCalls: false,
+          stringArrayWrappersParametersMaxCount: 2,
+          stringArrayWrappersType: 'variable',  // SAFER than 'function'
           unicodeEscapeSequence: false,
         },
-        ['excluded_bundle_name.js'] // Exclude specific bundles if needed
+        ['excluded_bundle_name.js']
       )
     );
   }
