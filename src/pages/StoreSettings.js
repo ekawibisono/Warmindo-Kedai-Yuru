@@ -287,7 +287,7 @@ const StoreSettings = () => {
                                                 disabled={saving}
                                                 className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
                                             >
-                                                ✓ Simpan
+                                                Simpan
                                             </button>
                                             <button
                                                 onClick={() => handleCancelEdit('store_name')}
@@ -307,7 +307,7 @@ const StoreSettings = () => {
                                             onClick={() => handleEditClick('store_name')}
                                             className="text-primary-600 hover:text-primary-700 text-sm font-medium whitespace-nowrap px-2 py-1"
                                         >
-                                            ✏️ Edit
+                                            Edit
                                         </button>
                                     </div>
                                 )}
@@ -333,7 +333,7 @@ const StoreSettings = () => {
                                                 disabled={saving}
                                                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
                                             >
-                                                ✓ Simpan
+                                                Simpan
                                             </button>
                                             <button
                                                 onClick={() => handleCancelEdit('store_address')}
@@ -353,7 +353,7 @@ const StoreSettings = () => {
                                             onClick={() => handleEditClick('store_address')}
                                             className="text-primary-600 hover:text-primary-700 text-sm font-medium whitespace-nowrap px-2 py-1"
                                         >
-                                            ✏️ Edit
+                                            Edit
                                         </button>
                                     </div>
                                 )}
@@ -379,7 +379,7 @@ const StoreSettings = () => {
                                                 disabled={saving}
                                                 className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
                                             >
-                                                ✓ Simpan
+                                                Simpan
                                             </button>
                                             <button
                                                 onClick={() => handleCancelEdit('store_phone')}
@@ -399,7 +399,7 @@ const StoreSettings = () => {
                                             onClick={() => handleEditClick('store_phone')}
                                             className="text-primary-600 hover:text-primary-700 text-sm font-medium whitespace-nowrap px-2 py-1"
                                         >
-                                            ✏️ Edit
+                                            Edit
                                         </button>
                                     </div>
                                 )}
@@ -448,8 +448,8 @@ const StoreSettings = () => {
                                         </h2>
                                         <p className="text-gray-600 mb-4 text-sm sm:text-base">
                                             {settings.delivery_enabled 
-                                                ? '✅ Sistem delivery sedang AKTIF. Customer dapat memesan dengan delivery.'
-                                                : '⚠️ Sistem delivery sedang NONAKTIF. Customer hanya dapat pickup.'
+                                                ? 'Sistem delivery sedang AKTIF. Customer dapat memesan dengan delivery.'
+                                                : 'Sistem delivery sedang NONAKTIF. Customer hanya dapat pickup.'
                                             }
                                         </p>
                                         <div className="bg-blue-50 border-l-4 border-blue-400 p-3 sm:p-4 rounded">
@@ -520,7 +520,7 @@ const StoreSettings = () => {
                                         <p className="text-gray-600 mb-4 text-sm sm:text-base">
                                             {settings.auto_schedule_enabled 
                                                 ? `⏰ Toko otomatis tutup ${settings.closing_time} dan buka ${settings.opening_time}`
-                                                : '🕰️ Pengaturan manual aktif. Jam operasional otomatis dimatikan.'
+                                                : 'Pengaturan manual aktif. Jam operasional otomatis dimatikan.'
                                             }
                                         </p>
 
@@ -676,7 +676,7 @@ const StoreSettings = () => {
                                                 storeStatus.status === 'open' ? 'text-green-700' : 'text-red-700'
                                             }`}>
                                                 {storeStatus.status === 'open'
-                                                    ? '✅ Customer dapat melakukan pemesanan'
+                                                    ? 'Customer dapat melakukan pemesanan'
                                                     : `🚫 ${storeStatus.message}`
                                                 }
                                             </p>
@@ -691,7 +691,7 @@ const StoreSettings = () => {
                                                     </svg>
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs sm:text-sm font-semibold text-amber-800 mb-2">💡 Kontrol Manual</p>
+                                                    <p className="text-xs sm:text-sm font-semibold text-amber-800 mb-2">Kontrol Manual</p>
                                                     <ul className="text-xs sm:text-sm text-amber-700 space-y-1">
                                                         <li className="flex items-start">
                                                             <span className="text-amber-500 mr-2">•</span>
@@ -768,7 +768,7 @@ const StoreSettings = () => {
                     {settings.auto_schedule_enabled && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6">
                             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-                                🔄 Manual Sync (Testing)
+                                Manual Sync (Testing)
                             </h3>
                             <p className="text-xs sm:text-sm text-gray-600 mb-4">
                                 Sync database order_enabled dengan status auto-schedule saat ini.

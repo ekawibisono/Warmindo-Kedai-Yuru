@@ -943,7 +943,7 @@ const Receipt = ({ order, items, onClose }) => {
                                     <div style={{ fontSize: "11px", fontWeight: 800, marginBottom: "1.2mm", textTransform: "uppercase", letterSpacing: "0.3px" }}>
                                         Terima Kasih!
                                     </div>
-                                    <div style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.2px" }}>Kedai Yuru</div>
+                                    <div style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.2px" }}>kedaiyuru.click</div>
                                 </div>
                                 <div style={{ height: "12mm" }} />
                             </div>

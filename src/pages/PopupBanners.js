@@ -82,7 +82,7 @@ const PopupBanners = () => {
       const response = await staffAPI.getPopupBanners();
       setBanners(response.data);
     } catch (error) {
-      notify.error('❌ Gagal memuat popup banners');
+      notify.error('Gagal memuat popup banners');
       console.error(error);
     } finally {
       setLoading(false);
@@ -93,7 +93,7 @@ const PopupBanners = () => {
     e.preventDefault();
     
     if (!validateForm()) {
-      notify.error('❌ Mohon perbaiki kesalahan pada form');
+      notify.error('Mohon perbaiki kesalahan pada form');
       return;
     }
     
@@ -109,7 +109,7 @@ const PopupBanners = () => {
       await fetchBanners();
       handleCloseForm();
     } catch (error) {
-      notify.error(`❌ Gagal ${editingBanner ? 'memperbarui' : 'membuat'} popup banner`);
+      notify.error(`Gagal ${editingBanner ? 'memperbarui' : 'membuat'} popup banner`);
       console.error(error);
     }
   };
@@ -117,10 +117,10 @@ const PopupBanners = () => {
   const handleToggle = async (id) => {
     try {
       await staffAPI.togglePopupBanner(id);
-      notify.success('✅ Status popup banner berhasil diubah');
+      notify.success('Status popup banner berhasil diubah');
       await fetchBanners();
     } catch (error) {
-      notify.error('❌ Gagal mengubah status popup banner');
+      notify.error('Gagal mengubah status popup banner');
       console.error(error);
     }
   };
@@ -136,11 +136,11 @@ const PopupBanners = () => {
   const handleDelete = async () => {
     try {
       await staffAPI.deletePopupBanner(deleteDialog.id);
-      notify.success('✅ Popup banner berhasil dihapus');
+      notify.success('Popup banner berhasil dihapus');
       await fetchBanners();
       setDeleteDialog({ isOpen: false, id: null, title: '' });
     } catch (error) {
-      notify.error('❌ Gagal menghapus popup banner');
+      notify.error('Gagal menghapus popup banner');
       console.error(error);
     }
   };

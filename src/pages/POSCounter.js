@@ -25,7 +25,7 @@ const ProductCard = memo(({ product, formatRupiah, onSelectProduct }) => {
                     />
                 ) : (
                     <div className="w-full h-32 sm:h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <div className="text-4xl">🍽️</div>
+                        <div className="text-4xl"></div>
                     </div>
                 )}
                 {soldBadge && (
@@ -296,7 +296,7 @@ const POSCounter = () => {
         receipt += `───────────────────────\n\n`;
 
         // Items detail dengan harga
-        receipt += `📦 *DETAIL PESANAN*\n`;
+        receipt += `*DETAIL PESANAN*\n`;
         receipt += `───────────────────────\n`;
 
         let subtotal = 0;
@@ -352,13 +352,13 @@ const POSCounter = () => {
 
         // Notes jika ada
         if (order.notes) {
-            receipt += `\n📝 Catatan:\n${order.notes}\n`;
+            receipt += `\nCatatan:\n${order.notes}\n`;
         }
 
         receipt += `\n`;
         receipt += `═══════════════════════\n`;
         receipt += `   *Terima Kasih!*\n`;
-        receipt += `   Selamat Menikmati 😊\n`;
+        receipt += `   Selamat Menikmati\n`;
         receipt += `═══════════════════════\n`;
 
         return receipt;
@@ -1291,7 +1291,6 @@ const POSCounter = () => {
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center space-x-2">
-                                                    <span className="text-lg">📝</span>
                                                     <span>Nama Pelanggan {customerType === 'guest' && '*'}</span>
                                                 </label>
                                                 <input
@@ -1305,7 +1304,6 @@ const POSCounter = () => {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center space-x-2">
-                                                    <span className="text-lg">📱</span>
                                                     <span>Nomor HP {customerType === 'guest' ? '(Opsional)' : '*'}</span>
                                                 </label>
                                                 <input
@@ -1326,7 +1324,6 @@ const POSCounter = () => {
                                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
                                         <div className="flex items-center space-x-3">
                                             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                                                <span className="text-white text-lg">👤</span>
                                             </div>
                                             <div>
                                                 <span className="text-blue-800 font-semibold text-lg">Customer Terdaftar</span>
@@ -1389,7 +1386,6 @@ const POSCounter = () => {
                                                     : 'border-amber-200 hover:border-amber-300 text-amber-700'
                                             }`}
                                         >
-                                            <span className="text-lg">📦</span>
                                             <div className="text-center">
                                                 <div className="font-semibold text-xs">Pickup</div>
                                                 <div className="text-xs opacity-75">Ambil Sendiri</div>
@@ -1406,7 +1402,6 @@ const POSCounter = () => {
                                                     : 'border-amber-200 hover:border-amber-300 text-amber-700'
                                             }`}
                                         >
-                                            <span className="text-lg">🚚</span>
                                             <div className="text-center">
                                                 <div className="font-semibold text-xs">Delivery</div>
                                                 <div className="text-xs opacity-75">Antar Langsung</div>
@@ -1421,7 +1416,6 @@ const POSCounter = () => {
                                         <div className="space-y-4">
                                             <div>
                                                 <label className="block text-sm font-semibold text-blue-800 mb-2 flex items-center space-x-2">
-                                                    <span className="text-lg">📍</span>
                                                     <span>Alamat Pengiriman *</span>
                                                 </label>
                                                 <textarea
@@ -1439,7 +1433,6 @@ const POSCounter = () => {
                                 {/* Payment Method */}
                                 <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                                     <label className="block text-sm font-semibold text-green-800 mb-3 flex items-center space-x-2">
-                                        <span className="text-lg">💳</span>
                                         <span>Metode Pembayaran</span>
                                     </label>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1453,7 +1446,6 @@ const POSCounter = () => {
                                             }`}
                                         >
                                             <div className="flex items-center justify-center space-x-1">
-                                                <span className="text-sm">💵</span>
                                                 <span>Cash</span>
                                             </div>
                                             <div className="text-xs opacity-75">Pembayaran Tunai</div>
@@ -1468,7 +1460,6 @@ const POSCounter = () => {
                                             }`}
                                         >
                                             <div className="flex items-center justify-center space-x-1">
-                                                <span className="text-sm">📱</span>
                                                 <span>QRIS</span>
                                             </div>
                                             <div className="text-xs opacity-75">Scan QR Code</div>
@@ -1513,7 +1504,7 @@ const POSCounter = () => {
                                         onClick={handleSubmitOrder}
                                         className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-bold hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                                     >
-                                        <span>🚀 Proses Order</span>
+                                        <span>Proses Order</span>
                                     </button>
                                 </div>
                             </div>

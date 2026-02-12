@@ -37,7 +37,7 @@ const WhatsAppSettings = () => {
     const [loadingStats, setLoadingStats] = useState(false);
     const autoRefreshRef = useRef(null);
     const [testTarget, setTestTarget] = useState("");
-    const [testMessage, setTestMessage] = useState("Tes notifikasi WhatsApp dari Kedai Yuru ✅");
+    const [testMessage, setTestMessage] = useState("Tes notifikasi WhatsApp dari Kedai Yuru");
     const previousReadyState = useRef(false);
     const refreshIntervalRef = useRef(5000); // Start with 5 seconds
     const autoRefreshStartTime = useRef(null);
@@ -71,12 +71,12 @@ const WhatsAppSettings = () => {
             
             // Show notification when status changes from not ready to ready (during auto-refresh)
             if (newIsReady && wasNotReadyBefore && autoRefreshRef.current) {
-                notify.success("WhatsApp berhasil terhubung! ✅");
+                notify.success("WhatsApp berhasil terhubung!");
             }
             
             // Show notification if explicitly requested (after manual action)
             if (newIsReady && showNotification) {
-                notify.success("WhatsApp berhasil terhubung! ✅");
+                notify.success("WhatsApp berhasil terhubung!");
             }
             
             // Update previous state
@@ -356,7 +356,7 @@ const WhatsAppSettings = () => {
                             {/* Provider Badge */}
                             <div className="flex items-center gap-3 mb-4 flex-wrap">
                                 <span className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                    {deviceStatus.provider === 'fonnte' ? '🌐 Fonnte API' : '🖥️ Self-Hosted'}
+                                    {deviceStatus.provider === 'fonnte' ? 'Fonnte API' : 'Self-Hosted'}
                                 </span>
                                 {deviceStatus.provider === 'self-hosted' && deviceStatus.queueSize > 0 && (
                                     <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
@@ -366,7 +366,7 @@ const WhatsAppSettings = () => {
                                 {/* Auto-refresh indicator */}
                                 {isAutoRefreshActive && !deviceStatus.isReady && deviceStatus.provider === 'self-hosted' && (
                                     <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-700 animate-pulse">
-                                        🔄 Auto-refresh aktif
+                                        Auto-refresh aktif
                                     </span>
                                 )}
                             </div>
@@ -401,7 +401,7 @@ const WhatsAppSettings = () => {
                             {deviceStatus.provider === 'self-hosted' && deviceStatus.qrCode && !deviceStatus.isReady && (
                                 <div className="text-center">
                                     <p className="text-gray-700 mb-4">
-                                        📱 <strong>Scan QR code berikut dengan WhatsApp Anda:</strong>
+                                        <strong>Scan QR code berikut dengan WhatsApp Anda:</strong>
                                     </p>
                                     <div className="inline-block p-4 bg-white border-2 border-gray-300 rounded-lg shadow-lg">
                                         <img 
@@ -418,13 +418,13 @@ const WhatsAppSettings = () => {
                                     </div>
                                     <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-left">
                                         <p className="text-xs text-blue-800">
-                                            💡 <strong>Tips:</strong> WhatsApp akan meminta Anda memberi nama perangkat setelah scan. 
+                                            <strong>Tips:</strong> WhatsApp akan meminta Anda memberi nama perangkat setelah scan. 
                                             Ini normal dan hanya terjadi sekali. Nama ini untuk identifikasi perangkat Anda di WhatsApp.
                                         </p>
                                     </div>
                                     <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg text-left">
                                         <p className="text-xs text-purple-800">
-                                            🔄 <strong>Auto-refresh:</strong> Status akan otomatis diperbarui setelah scan berhasil. 
+                                            <strong>Auto-refresh:</strong> Status akan otomatis diperbarui setelah scan berhasil. 
                                             Interval pengecekan akan meningkat bertahap (5s→8s→12s→max 30s) untuk menghindari spam request. 
                                             Auto-refresh akan berhenti otomatis setelah 5 menit atau saat terhubung.
                                         </p>
@@ -443,7 +443,7 @@ const WhatsAppSettings = () => {
                                         </p>
                                     )}
                                     <p className="text-xs text-gray-500 mt-3">
-                                        💡 Auto-refresh aktif dengan smart interval (max 5 menit)
+                                        Auto-refresh aktif dengan smart interval (max 5 menit)
                                     </p>
                                 </div>
                             )}
@@ -451,11 +451,10 @@ const WhatsAppSettings = () => {
                             {/* Fonnte Status */}
                             {deviceStatus.provider === 'fonnte' && (
                                 <div className="text-center">
-                                    <div className="text-4xl mb-3">🌐</div>
                                     <p className="text-gray-600">
                                         {deviceStatus.isReady 
-                                            ? "Fonnte API siap digunakan ✅" 
-                                            : "Token Fonnte perlu dikonfigurasi di bawah ⬇️"}
+                                            ? "Fonnte API siap digunakan" 
+                                            : "Token Fonnte perlu dikonfigurasi di bawah"}
                                     </p>
                                 </div>
                             )}
@@ -473,7 +472,7 @@ const WhatsAppSettings = () => {
                                             Checking...
                                         </span>
                                     ) : (
-                                        "🔄 Refresh Status"
+                                        "Refresh Status"
                                     )}
                                 </button>
 
@@ -521,13 +520,13 @@ const WhatsAppSettings = () => {
                         <div className="bg-white rounded-lg shadow-md overflow-hidden">
                             <div className="p-6">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h2 className="text-xl font-bold text-gray-900">📊 Message Usage Statistics</h2>
+                                    <h2 className="text-xl font-bold text-gray-900">Message Usage Statistics</h2>
                                     <button
                                         onClick={fetchMessageStats}
                                         disabled={loadingStats}
                                         className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                                     >
-                                        {loadingStats ? "Loading..." : "🔄 Refresh"}
+                                        {loadingStats ? "Loading..." : "Refresh"}
                                     </button>
                                 </div>
 
@@ -635,7 +634,7 @@ const WhatsAppSettings = () => {
                                         {messageStats.daily.percentage >= 75 && messageStats.daily.percentage < 90 && (
                                             <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
                                                 <p className="text-sm text-orange-800 font-semibold">
-                                                    ⚠️ WARNING: Moderate-high usage detected
+                                                    WARNING: Moderate-high usage detected
                                                 </p>
                                                 <p className="text-xs text-orange-700 mt-1">
                                                     Prioritaskan hanya pesan penting (payment, order ready, delivery).
@@ -646,7 +645,7 @@ const WhatsAppSettings = () => {
                                         {/* Info Box */}
                                         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                             <p className="text-xs text-blue-800">
-                                                💡 <strong>Tips Anti-Ban:</strong> Bot secara otomatis menerapkan delay 20-45 detik 
+                                                <strong>Tips Anti-Ban:</strong> Bot secara otomatis menerapkan delay 20-45 detik 
                                                 antar pesan dan break otomatis setiap 5 pesan berturut-turut untuk menghindari deteksi spam WhatsApp.
                                             </p>
                                         </div>
@@ -669,8 +668,8 @@ const WhatsAppSettings = () => {
                                     <h2 className="text-xl font-bold text-gray-900">Notifikasi WhatsApp</h2>
                                     <p className="text-gray-600 mt-2">
                                         {settings.wa_notifications_enabled
-                                            ? "✅ Notifikasi AKTIF. Sistem akan mengirim pesan ke customer sesuai status order."
-                                            : "⚠️ Notifikasi NONAKTIF. Sistem tidak akan mengirim pesan ke customer."}
+                                            ? "Notifikasi AKTIF. Sistem akan mengirim pesan ke customer sesuai status order."
+                                            : "Notifikasi NONAKTIF. Sistem tidak akan mengirim pesan ke customer."}
                                     </p>
                                     <p className="text-xs text-gray-500 mt-2">
                                         Provider: <strong>{deviceStatus.provider}</strong> | 
@@ -823,7 +822,7 @@ const WhatsAppSettings = () => {
                                             Mengirim...
                                         </span>
                                     ) : (
-                                        "📱 Kirim Pesan Test"
+                                        "Kirim Pesan Test"
                                     )}
                                 </button>
                             </div>

@@ -199,7 +199,7 @@ const HotDeals = () => {
         let warningMessage = `Apakah Anda yakin ingin menghapus tier "${tier.tier_name}"?`;
         
         if (activeCount === 0 && hasHotDeals) {
-            warningMessage += `\n\n⚠️ PERINGATAN: Ini adalah tier aktif terakhir dan masih ada ${hotDealsProducts.length} produk Hot Deals. Setelah tier dihapus, semua Hot Deals akan otomatis dihapus juga.`;
+            warningMessage += `\n\nPERINGATAN: Ini adalah tier aktif terakhir dan masih ada ${hotDealsProducts.length} produk Hot Deals. Setelah tier dihapus, semua Hot Deals akan otomatis dihapus juga.`;
         }
 
         setDeleteTierDialog({
@@ -272,7 +272,7 @@ const HotDeals = () => {
                 <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
                     <div className="flex-1">
                         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2 sm:gap-3">
-                            🔥 <span className="hidden sm:inline">Hot Deals Management</span>
+                            <span className="hidden sm:inline">Hot Deals Management</span>
                             <span className="sm:hidden">Hot Deals</span>
                         </h1>
                         <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
@@ -292,7 +292,7 @@ const HotDeals = () => {
                             {loading ? 'Memproses...' : 'Update Otomatis'}
                         </button>
                         <p className="text-xs text-gray-500 text-center sm:text-right lg:text-right max-w-sm">
-                            💡 <span className="hidden sm:inline">Klik untuk menerapkan tier secara otomatis ke semua produk berdasarkan jumlah terjual</span>
+                            <span className="hidden sm:inline">Klik untuk menerapkan tier secara otomatis ke semua produk berdasarkan jumlah terjual</span>
                             <span className="sm:hidden">Auto-apply tier ke semua produk</span>
                         </p>
                     </div>
@@ -307,9 +307,6 @@ const HotDeals = () => {
                                     <p className="text-red-100 text-sm">Total Hot Deals</p>
                                     <h3 className="text-2xl sm:text-3xl font-bold mt-2 break-words">{stats.total_hot_deals}</h3>
                                     <p className="text-red-100 text-xs mt-1">dari {stats.total_products} produk</p>
-                                </div>
-                                <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                                    <span className="text-3xl">🔥</span>
                                 </div>
                             </div>
                         </div>
@@ -369,7 +366,7 @@ const HotDeals = () => {
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            📦 <span className="hidden sm:inline">Produk </span>Hot Deals
+                            <span className="hidden sm:inline">Produk </span>Hot Deals
                         </button>
                         <button
                             onClick={() => setActiveTab('tiers')}
@@ -378,7 +375,7 @@ const HotDeals = () => {
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }`}
                         >
-                            ⚙️ <span className="hidden sm:inline">Pengaturan </span>Tier
+                            <span className="hidden sm:inline">Pengaturan </span>Tier
                         </button>
                     </nav>
                 </div>
@@ -397,7 +394,7 @@ const HotDeals = () => {
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="text-sm font-medium text-amber-800 mb-1">
-                                            ⚠️ Peringatan: Tidak Ada Tier Aktif
+                                            Peringatan: Tidak Ada Tier Aktif
                                         </h3>
                                         <p className="text-sm text-amber-700 mb-3">
                                             Masih ada <strong>{hotDealsProducts.length} produk Hot Deals</strong> aktif, tapi tidak ada tier yang dikonfigurasi. 
@@ -407,7 +404,7 @@ const HotDeals = () => {
                                             onClick={handleAutoUpdate}
                                             className="btn-warning text-sm"
                                         >
-                                            🔄 Update Sekarang untuk Menghapus Hot Deals
+                                            Update Sekarang untuk Menghapus Hot Deals
                                         </button>
                                     </div>
                                 </div>
@@ -418,7 +415,7 @@ const HotDeals = () => {
                         <div className="card">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-                                    🔥 <span className="hidden sm:inline">Produk </span>Hot Deals Aktif ({hotDealsProducts.length})
+                                    <span className="hidden sm:inline">Produk </span>Hot Deals Aktif ({hotDealsProducts.length})
                                 </h2>
                             </div>
 
@@ -552,7 +549,7 @@ const HotDeals = () => {
                         <div className="card">
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-                                    📦 Produk Tersedia ({nonHotDealsProducts.length})
+                                    Produk Tersedia ({nonHotDealsProducts.length})
                                 </h2>
                             </div>
 
@@ -783,14 +780,13 @@ const HotDeals = () => {
                             </>
                         ) : (
                             <div className="text-center py-8 sm:py-12 px-4">
-                                <div className="text-4xl sm:text-6xl mb-4">⚙️</div>
                                 <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Belum ada tier yang dikonfigurasi</h3>
                                 <p className="text-gray-600 text-sm sm:text-base mb-6 max-w-md mx-auto">
                                     Setup tier untuk mengotomatisasi Hot Deals berdasarkan jumlah produk terjual
                                 </p>
                                 
                                 <div className="bg-gray-50 rounded-xl p-4 sm:p-6 mb-6 text-left max-w-lg mx-auto">
-                                    <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">📋 Cara Setup Tier Otomatis:</h4>
+                                    <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Cara Setup Tier Otomatis:</h4>
                                     <ol className="text-xs sm:text-sm text-gray-600 space-y-2">
                                         <li className="flex gap-2">
                                             <span className="text-blue-600 font-medium">1.</span>
@@ -802,7 +798,7 @@ const HotDeals = () => {
                                         </li>
                                         <li className="flex gap-2">
                                             <span className="text-blue-600 font-medium">3.</span>
-                                            <span>Pastikan tier "Aktif" ✅</span>
+                                            <span>Pastikan tier "Aktif"</span>
                                         </li>
                                         <li className="flex gap-2">
                                             <span className="text-blue-600 font-medium">4.</span>
@@ -812,7 +808,7 @@ const HotDeals = () => {
                                     
                                     <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                                         <p className="text-green-800 text-xs">
-                                            💡 <strong>Hasil:</strong> Produk dengan jumlah terjual sesuai tier akan otomatis mendapat diskon tanpa perlu setting manual!
+                                            <strong>Hasil:</strong> Produk dengan jumlah terjual sesuai tier akan otomatis mendapat diskon tanpa perlu setting manual!
                                         </p>
                                     </div>
                                 </div>

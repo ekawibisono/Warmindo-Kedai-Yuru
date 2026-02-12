@@ -26,6 +26,7 @@ import Discounts from './pages/Discounts';
 import HotDeals from './pages/HotDeals';
 import StaffManagement from './pages/StaffManagement';
 import CustomerPointsManagement from './pages/CustomerPointsManagement';
+import VoucherRewards from './pages/VoucherRewards';
 import PopupBanners from './pages/PopupBanners';
 import POSCounter from './pages/POSCounter';
 import TermsOfService from './pages/TermsOfService';
@@ -199,6 +200,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CustomerPointsManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/voucher-rewards"
+            element={
+              <ProtectedRoute>
+                <VoucherRewards />
               </ProtectedRoute>
             }
           />

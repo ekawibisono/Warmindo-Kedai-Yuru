@@ -137,6 +137,49 @@ export const publicAPI = {
     });
   },
 
+  // ========== VOUCHER REWARDS SYSTEM (NEW) ==========
+  // Public - Get available voucher rewards (no auth)
+  getPublicVoucherRewards: () => api.get('/public/voucher-rewards'),
+
+  // Customer - Get available voucher rewards (with can_redeem info)
+  getCustomerVoucherRewards: () => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/voucher-rewards', {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
+  // Customer - Redeem voucher
+  redeemVoucher: (voucherRewardId) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.post('/auth/customer/redeem-voucher', 
+      { voucher_reward_id: voucherRewardId },
+      { headers: { 'Authorization': `Bearer ${customerToken}` } }
+    );
+  },
+
+  // Customer - Get my vouchers
+  getMyVouchers: (status = null) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    const params = status ? { status } : {};
+    return api.get('/auth/customer/my-vouchers', {
+      headers: { 'Authorization': `Bearer ${customerToken}` },
+      params
+    });
+  },
+
+  // Customer - Get voucher by code
+  getVoucherByCode: (code) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get(`/auth/customer/voucher/${code}`, {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
   // ========== POPUP BANNER API (NEW) ==========
   // Get active popup banner for customers
   getActivePopupBanner: () => api.get('/public/popup-banner/active'),
@@ -309,6 +352,28 @@ export const staffAPI = {
   deletePopupBanner: (id) => api.delete(`/staff/popup-banners/${id}`),
   // Toggle popup banner status
   togglePopupBanner: (id) => api.patch(`/staff/popup-banners/${id}/toggle`),
+
+  // ========== VOUCHER REWARDS MANAGEMENT API (NEW) ==========
+  // Get all voucher rewards
+  getVoucherRewards: (activeOnly = false) => {
+    const params = activeOnly ? '?active_only=true' : '';
+    return api.get(`/staff/voucher-rewards${params}`);
+  },
+  // Get single voucher reward
+  getVoucherRewardById: (id) => api.get(`/staff/voucher-rewards/${id}`),
+  // Create new voucher reward
+  createVoucherReward: (data) => api.post('/staff/voucher-rewards', data),
+  // Update voucher reward
+  updateVoucherReward: (id, data) => api.put(`/staff/voucher-rewards/${id}`, data),
+  // Delete voucher reward (soft delete)
+  deleteVoucherReward: (id) => api.delete(`/staff/voucher-rewards/${id}`),
+  // Get customer vouchers list (admin view)
+  getCustomerVouchersList: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.customer_id) params.append('customer_id', filters.customer_id);
+    return api.get(`/staff/customer-vouchers?${params.toString()}`);
+  },
 
 };
 

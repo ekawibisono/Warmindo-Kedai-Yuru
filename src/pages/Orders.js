@@ -218,7 +218,7 @@ const Orders = () => {
             waiting_pickup: {
                 label: isDineIn ? 'Menunggu Disajikan' : 'Menunggu Diambil',
                 color: 'bg-blue-100 text-blue-800',
-                icon: isDineIn ? '🍽️' : '🏪'
+                icon: '•'
             },
             picked_up: {
                 label: isDineIn ? 'Sudah Disajikan' : 'Sudah Diambil',
@@ -228,7 +228,7 @@ const Orders = () => {
             completed: {
                 label: isDelivery ? 'Terkirim' : 'Selesai',
                 color: 'bg-green-100 text-green-800',
-                icon: '🎉'
+                icon: '✓'
             },
             cancelled: {
                 label: 'Dibatalkan',
@@ -243,7 +243,7 @@ const Orders = () => {
             draft: {
                 label: 'Draft',
                 color: 'bg-gray-100 text-gray-800',
-                icon: '📝'
+                icon: '•'
             }
         };
         return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800', icon: '•' };
@@ -252,8 +252,8 @@ const Orders = () => {
     // Get source info dengan emblem
     const getSourceInfo = (source) => {
         const sourceMap = {
-            online: { label: 'Online', color: 'bg-blue-100 text-blue-800', icon: '🌐' },
-            pos: { label: 'Kasir', color: 'bg-purple-100 text-purple-800', icon: '🏪' }
+            online: { label: 'Online', color: 'bg-blue-100 text-blue-800', icon: '•' },
+            pos: { label: 'Kasir', color: 'bg-purple-100 text-purple-800', icon: '•' }
         };
         // Default ke online jika tidak ada source atau source tidak dikenali
         return sourceMap[source] || sourceMap.online;
@@ -274,7 +274,7 @@ const Orders = () => {
                 label: 'Verifikasi Pembayaran',
                 status: 'verify_payment',
                 className: 'bg-yellow-600 hover:bg-yellow-700',
-                icon: '💳'
+                icon: '•'
             });
         }
 
@@ -284,7 +284,7 @@ const Orders = () => {
                 label: 'Hapus Pesanan',
                 status: 'delete',
                 className: 'bg-red-600 hover:bg-red-700',
-                icon: '🗑️'
+                icon: '•'
             });
         }
 
@@ -365,7 +365,7 @@ const Orders = () => {
                     label: isDineIn ? 'Siap Disajikan' : 'Tunggu Diambil',
                     status: 'waiting_pickup',
                     className: 'bg-blue-600 hover:bg-blue-700',
-                    icon: isDineIn ? '🍽️' : '🏪'
+                    icon: '•'
                 });
             }
 
@@ -383,7 +383,7 @@ const Orders = () => {
                     label: 'Selesaikan',
                     status: 'completed',
                     className: 'bg-green-600 hover:bg-green-700',
-                    icon: '🎉'
+                    icon: '✓'
                 });
             }
         }
@@ -502,7 +502,7 @@ const Orders = () => {
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
-                                    📦 Pickup
+                                    Pickup
                                 </button>
                                 <button
                                     onClick={() => setFilter('takeaway')}
@@ -520,7 +520,7 @@ const Orders = () => {
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
-                                    🍽️ Dine-in
+                                    Dine-in
                                 </button>
                             </div>
                         </div>
@@ -590,7 +590,7 @@ const Orders = () => {
                                                     ? 'bg-blue-100 text-blue-800' 
                                                     : 'bg-green-100 text-green-800'
                                             }`}>
-                                                {order.payment_method === 'qris' ? '💳 QRIS' : '💵 CASH'}
+                                                {order.payment_method === 'qris' ? 'QRIS' : 'CASH'}
                                             </span>
                                             {/* Source Badge */}
                                             <span className={`inline-block ml-1 px-2 py-1 rounded text-xs font-medium ${sourceInfo.color}`}>
@@ -602,12 +602,12 @@ const Orders = () => {
                                     <div className="space-y-2 text-sm mb-4">
                                         <div className="flex items-center text-gray-600">
                                             <span className="mr-2">
-                                                {order.type === 'delivery' ? '🚗' : order.type === 'takeaway' ? '🥡' : order.type === 'dine_in' ? '🍽️' : '📦'}
+                                                {order.type === 'delivery' ? '•' : order.type === 'takeaway' ? '•' : order.type === 'dine_in' ? '•' : '•'}
                                             </span>
                                             <span>{order.type === 'delivery' ? 'Delivery' : order.type === 'takeaway' ? 'TakeAway' : order.type === 'dine_in' ? 'Dine-in' : 'Pickup'}</span>
                                         </div>
                                         <div className="flex items-center text-gray-600">
-                                            <span className="mr-2">📞</span>
+                                            <span className="mr-2">☎</span>
                                             <span>{order.customer_phone || '-'}</span>
                                         </div>
                                         <div className="flex items-center text-gray-600">
@@ -615,7 +615,6 @@ const Orders = () => {
                                             <span>{formatDate(order.created_at)}</span>
                                         </div>
                                         <div className="flex items-center font-bold text-primary-600">
-                                            <span className="mr-2">💰</span>
                                             <span>{formatRupiah(order.grand_total)}</span>
                                         </div>
                                     </div>
@@ -625,7 +624,7 @@ const Orders = () => {
                                             onClick={() => fetchOrderDetail(order.id)}
                                             className="w-full btn-secondary py-2 text-sm"
                                         >
-                                            👁️ Lihat Detail
+                                            Lihat Detail
                                         </button>
 
                                         {/* Dynamic action buttons */}
@@ -692,7 +691,7 @@ const Orders = () => {
                                                 ? 'bg-purple-100 text-purple-800'
                                                 : 'bg-gray-100 text-gray-800'
                                             }`}>
-                                                {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : selectedOrder.order.type === 'takeaway' ? '🥡 TakeAway' : selectedOrder.order.type === 'dine_in' ? '🍽️ Dine-in' : '📦 Pickup'}
+                                                {selectedOrder.order.type === 'delivery' ? 'Delivery' : selectedOrder.order.type === 'takeaway' ? 'TakeAway' : selectedOrder.order.type === 'dine_in' ? 'Dine-in' : 'Pickup'}
                                             </span>
                                         </div>
                                         <div>
