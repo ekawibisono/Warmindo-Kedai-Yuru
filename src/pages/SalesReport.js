@@ -326,7 +326,7 @@ const SalesReport = () => {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">📊 Laporan Penjualan</h1>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Laporan Penjualan</h1>
                         <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Analisis dan export data penjualan</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
@@ -366,7 +366,7 @@ const SalesReport = () => {
                 {/* Filters */}
                 <div className={`card ${isMobile && !showFilters ? 'hidden' : ''}`}>
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-base sm:text-lg">🔍 Filter Data</h3>
+                        <h3 className="font-bold text-base sm:text-lg">Filter Data</h3>
                         <button
                             onClick={() => setShowFilters(false)}
                             className="sm:hidden text-gray-500 hover:text-gray-700"
@@ -379,7 +379,7 @@ const SalesReport = () => {
 
                     {/* Search Bar */}
                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">🔎 Cari Customer (Semua Periode)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Cari Customer (Semua Periode)</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -396,7 +396,7 @@ const SalesReport = () => {
                         </div>
                         {searchQuery && (
                             <div className="mt-1 text-xs text-green-600 bg-green-50 p-2 rounded">
-                                💡 Pencarian "{searchQuery}" mencakup SEMUA data tanpa batasan periode ({filteredOrders.length} hasil ditemukan)
+                                Pencarian "{searchQuery}" mencakup SEMUA data tanpa batasan periode ({filteredOrders.length} hasil ditemukan)
                             </div>
                         )}
                     </div>
@@ -514,11 +514,11 @@ const SalesReport = () => {
                         <div className="flex justify-between items-center">
                             <div>
                                 <div className="text-xl font-bold text-gray-900">{summary.cashOrders}</div>
-                                <div className="text-xs text-gray-600">💵 Cash</div>
+                                <div className="text-xs text-gray-600">Cash</div>
                             </div>
                             <div>
                                 <div className="text-xl font-bold text-gray-900">{summary.qrisOrders}</div>
-                                <div className="text-xs text-gray-600">📱 QRIS</div>
+                                <div className="text-xs text-gray-600">QRIS</div>
                             </div>
                         </div>
                     </div>
@@ -528,11 +528,11 @@ const SalesReport = () => {
                         <div className="grid grid-cols-3 gap-2 text-center">
                             <div>
                                 <div className="text-lg font-bold text-gray-900">{summary.pickupOrders}</div>
-                                <div className="text-xs text-gray-600">📦 Pickup</div>
+                                <div className="text-xs text-gray-600">Pickup</div>
                             </div>
                             <div>
                                 <div className="text-lg font-bold text-gray-900">{summary.takeawayOrders}</div>
-                                <div className="text-xs text-gray-600">🥡 TakeAway</div>
+                                <div className="text-xs text-gray-600">TakeAway</div>
                             </div>
                             <div>
                                 <div className="text-lg font-bold text-gray-900">{summary.deliveryOrders}</div>
@@ -580,10 +580,10 @@ const SalesReport = () => {
                                             <div>
                                                 <div className="text-gray-500">Info:</div>
                                                 <div className="text-gray-900">
-                                                    {order.type === 'pickup' ? '📦 Pickup' : order.type === 'takeaway' ? '🥡 TakeAway' : '🚚 Delivery'}
+                                                    {order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery'}
                                                 </div>
                                                 <div className="text-gray-900">
-                                                    {order.payment_method === 'cash' ? '💵 Cash' : '📱 QRIS'}
+                                                    {order.payment_method === 'cash' ? 'Cash' : 'QRIS'}
                                                 </div>
                                             </div>
                                         </div>
@@ -620,12 +620,12 @@ const SalesReport = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-gray-900">
-                                                        {order.type === 'pickup' ? '📦 Pickup' : order.type === 'takeaway' ? '🥡 TakeAway' : '🚚 Delivery'}
+                                                        {order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery'}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-gray-900">
-                                                        {order.payment_method === 'cash' ? '💵 Cash' : '📱 QRIS'}
+                                                        {order.payment_method === 'cash' ? 'Cash' : 'QRIS'}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">

@@ -231,7 +231,7 @@ const StaffManagement = () => {
                                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
                                             }`}
                                         >
-                                            {staff.is_active ? '❌ Nonaktifkan' : '✅ Aktifkan'}
+                                            {staff.is_active ? 'Nonaktifkan' : 'Aktifkan'}
                                         </button>
                                         <button
                                             onClick={() => handleRegenerateKey(staff.id)}
@@ -382,7 +382,7 @@ const StaffManagement = () => {
 
                             <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 sm:p-4 mb-4">
                                 <p className="text-xs sm:text-sm text-yellow-700">
-                                    ⚠️ <strong>Penting:</strong> Key ini hanya ditampilkan sekali. Simpan dengan aman!
+                                    <strong>Penting:</strong> Key ini hanya ditampilkan sekali. Simpan dengan aman!
                                 </p>
                             </div>
 

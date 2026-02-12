@@ -716,7 +716,7 @@ const Discounts = () => {
                                                     </span>
                                                 ) : (
                                                     <span className="text-amber-600">
-                                                        ⚠ Belum ada produk yang dipilih
+                                                        Belum ada produk yang dipilih
                                                     </span>
                                                 )}
                                             </p>
@@ -822,7 +822,7 @@ const Discounts = () => {
                                                     </span>
                                                 ) : (
                                                     <span className="text-amber-600">
-                                                        ⚠ Belum ada kategori yang dipilih
+                                                        Belum ada kategori yang dipilih
                                                     </span>
                                                 )}
                                             </p>

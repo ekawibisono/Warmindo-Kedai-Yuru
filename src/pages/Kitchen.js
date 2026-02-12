@@ -130,13 +130,13 @@ const Kitchen = () => {
     const badges = {
       pending: { class: 'badge-warning', label: 'Pending', icon: '⏳' },
       confirmed: { class: 'badge-info', label: 'Confirmed', icon: '✓' },
-      preparing: { class: 'badge-warning', label: 'Memasak', icon: '🍳' },
+      preparing: { class: 'badge-warning', label: 'Memasak', icon: '•' },
       ready: { class: 'badge-success', label: 'Siap', icon: '✓' },
-      delivering: { class: 'badge-info', label: 'Dikirim', icon: '🚗' },
+      delivering: { class: 'badge-info', label: 'Dikirim', icon: '•' },
       delivered: { class: 'badge-success', label: 'Sampai', icon: '✓' },
-      waiting_pickup: { class: 'badge-info', label: 'Tunggu Ambil', icon: '🏪' },
+      waiting_pickup: { class: 'badge-info', label: 'Tunggu Ambil', icon: '•' },
       picked_up: { class: 'badge-success', label: 'Diambil', icon: '✓' },
-      completed: { class: 'badge-success', label: 'Selesai', icon: '🎉' }
+      completed: { class: 'badge-success', label: 'Selesai', icon: '✓' }
     };
     return badges[status] || { class: 'badge-gray', label: status, icon: '•' };
   };
@@ -151,7 +151,7 @@ const Kitchen = () => {
         label: 'Mulai Masak',
         status: 'preparing',
         className: 'btn-primary',
-        icon: '🍳'
+        icon: '•'
       });
     }
 
@@ -241,7 +241,7 @@ const Kitchen = () => {
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {order.type === 'delivery' ? '🚗 Delivery' : order.type === 'dine_in' ? '🍽️ Dine In' : '🏪 Pickup'}
+                        {order.type === 'delivery' ? 'Delivery' : order.type === 'dine_in' ? 'Dine In' : 'Pickup'}
                       </span>
                     </div>
                   </div>
@@ -329,7 +329,7 @@ const Kitchen = () => {
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-green-100 text-green-800'
                       }`}>
-                        {selectedOrder.order.type === 'delivery' ? '🚗 Delivery' : selectedOrder.order.type === 'dine_in' ? '🍽️ Dine In' : '🏪 Pickup'}
+                        {selectedOrder.order.type === 'delivery' ? 'Delivery' : selectedOrder.order.type === 'dine_in' ? 'Dine In' : 'Pickup'}
                       </span>
                     </div>
                     <div>

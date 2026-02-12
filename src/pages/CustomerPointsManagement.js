@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
 import { staffAPI } from '../services/api';
 import { notify } from '../components/common/Toast';
-import ConfirmDialog from '../components/common/ConfirmDialog';
 
 const CustomerPointsManagement = () => {
     const [loading, setLoading] = useState(true);
@@ -29,11 +28,7 @@ const CustomerPointsManagement = () => {
         reason: ''
     });
 
-    useEffect(() => {
-        fetchCustomers();
-    }, [filters.page, filters.sortBy, filters.minPoints]);
-
-    const fetchCustomers = async () => {
+    const fetchCustomers = useCallback(async () => {
         setLoading(true);
         try {
             const res = await staffAPI.getCustomerPointsList(filters);
@@ -46,7 +41,11 @@ const CustomerPointsManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filters]);
+
+    useEffect(() => {
+        fetchCustomers();
+    }, [fetchCustomers]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -136,25 +135,13 @@ const CustomerPointsManagement = () => {
         });
     };
 
-    const getSortLabel = (sortBy) => {
-        const labels = {
-            'points_desc': 'Poin Terbanyak',
-            'points_asc': 'Poin Tersedikit',
-            'orders_desc': 'Pesanan Terbanyak',
-            'spent_desc': 'Pembelian Terbesar',
-            'name_asc': 'Nama A-Z',
-            'recent': 'Terbaru'
-        };
-        return labels[sortBy] || sortBy;
-    };
-
     return (
         <AdminLayout>
             <div className="p-4 sm:p-6 lg:p-8">
                 {/* Header */}
                 <div className="mb-6">
                     <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
-                        🎯 Manajemen Poin Customer
+                        Manajemen Poin Customer
                     </h1>
                     <p className="text-gray-600">Kelola dan pantau poin loyalitas customer</p>
                 </div>
@@ -164,7 +151,6 @@ const CustomerPointsManagement = () => {
                     <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-medium opacity-90">Total Customer</h3>
-                            <span className="text-2xl">👥</span>
                         </div>
                         <p className="text-3xl font-bold">{stats.customers_with_points || 0}</p>
                         <p className="text-xs opacity-80 mt-1">dengan poin aktif</p>
@@ -173,7 +159,6 @@ const CustomerPointsManagement = () => {
                     <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-medium opacity-90">Poin Beredar</h3>
-                            <span className="text-2xl">💎</span>
                         </div>
                         <p className="text-3xl font-bold">{stats.total_points_in_circulation?.toLocaleString() || 0}</p>
                         <p className="text-xs opacity-80 mt-1">poin aktif</p>
@@ -182,7 +167,6 @@ const CustomerPointsManagement = () => {
                     <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-medium opacity-90">Total Diberikan</h3>
-                            <span className="text-2xl">🎁</span>
                         </div>
                         <p className="text-3xl font-bold">{stats.total_points_earned_all_time?.toLocaleString() || 0}</p>
                         <p className="text-xs opacity-80 mt-1">sepanjang waktu</p>
@@ -191,7 +175,6 @@ const CustomerPointsManagement = () => {
                     <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-medium opacity-90">Rata-rata Poin</h3>
-                            <span className="text-2xl">📊</span>
                         </div>
                         <p className="text-3xl font-bold">{stats.avg_points_per_customer || 0}</p>
                         <p className="text-xs opacity-80 mt-1">per customer</p>
@@ -354,7 +337,7 @@ const CustomerPointsManagement = () => {
                                                             onClick={() => handleAdjustPoints(customer)}
                                                             className="px-3 py-1 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
                                                         >
-                                                            ⚙️ Atur
+                                                            Atur
                                                         </button>
                                                     </div>
                                                 </td>
@@ -452,7 +435,6 @@ const CustomerPointsManagement = () => {
                                 </div>
                             ) : customerHistory.length === 0 ? (
                                 <div className="text-center py-12 text-gray-500">
-                                    <div className="text-6xl mb-4">🎯</div>
                                     <p>Belum ada riwayat poin</p>
                                 </div>
                             ) : (
@@ -524,7 +506,7 @@ const CustomerPointsManagement = () => {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="px-6 py-5 border-b bg-gradient-to-r from-orange-50 to-red-50">
-                            <h2 className="text-2xl font-bold text-gray-800">⚙️ Atur Poin</h2>
+                            <h2 className="text-2xl font-bold text-gray-800">Atur Poin</h2>
                             <p className="text-sm text-gray-600 mt-1">
                                 {selectedCustomer.full_name} - <span className="font-medium">Poin saat ini: {selectedCustomer.current_points}</span>
                             </p>
