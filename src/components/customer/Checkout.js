@@ -299,16 +299,19 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
             {step === 2 && 'Metode Pembayaran'}
             {step === 3 && 'Upload Bukti Pembayaran'}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 flex items-center gap-2"
-            disabled={loading}
-            title="Kembali ke Menu (Pesanan tetap tersimpan)"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {/* Hide close button on step 3 (QRIS payment) to prevent customer from forgetting to upload proof */}
+          {step !== 3 && (
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 flex items-center gap-2"
+              disabled={loading}
+              title="Kembali ke Menu (Pesanan tetap tersimpan)"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Info: Cart is saved */}
@@ -377,43 +380,59 @@ const Checkout = ({ cart, onClose, onSuccess, isDeliveryDisabled = false }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
                   Tipe Pesanan <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
+                  {/* Mobile: Stack vertically, Tablet+: 2 columns for first row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('pickup')}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                        orderType === 'pickup'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-bold text-base">🏪 Pickup</div>
+                      <div className="text-sm text-gray-600 mt-1">Ambil di toko</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrderType('delivery')}
+                      disabled={isDeliveryNotAvailable()}
+                      className={`p-4 border-2 rounded-lg text-center transition-colors ${
+                        orderType === 'delivery'
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : isDeliveryNotAvailable()
+                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-bold text-base">🚗 Delivery</div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        {isDeliveryDisabled 
+                          ? 'Tidak tersedia' 
+                          : isFreeOrder() 
+                          ? 'Tidak untuk gratis'
+                          : 'Antar ke lokasi'
+                        }
+                      </div>
+                    </button>
+                  </div>
+                  {/* Dine-in: Full width on all screens */}
                   <button
                     type="button"
-                    onClick={() => setOrderType('pickup')}
-                    className={`p-3 border-2 rounded-lg text-center transition-colors ${
-                      orderType === 'pickup'
+                    onClick={() => setOrderType('dine_in')}
+                    className={`w-full p-4 border-2 rounded-lg text-center transition-colors ${
+                      orderType === 'dine_in'
                         ? 'border-primary-500 bg-primary-50 text-primary-700'
                         : 'border-gray-300 hover:border-gray-400'
                     }`}
                   >
-                    <div className="font-bold">🏪 Pickup</div>
-                    <div className="text-xs text-gray-600 mt-1">Ambil di toko</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderType('delivery')}
-                    disabled={isDeliveryNotAvailable()}
-                    className={`p-3 border-2 rounded-lg text-center transition-colors ${
-                      orderType === 'delivery'
-                        ? 'border-primary-500 bg-primary-50 text-primary-700'
-                        : isDeliveryNotAvailable()
-                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="font-bold">🚗 Delivery</div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      {isDeliveryDisabled 
-                        ? 'Tidak tersedia' 
-                        : isFreeOrder() 
-                        ? 'Tidak untuk gratis'
-                        : 'Antar ke lokasi'
-                      }
-                    </div>
+                    <div className="font-bold text-base">🍽️ Dine-in</div>
+                    <div className="text-sm text-gray-600 mt-1">Makan di tempat</div>
                   </button>
                 </div>
               </div>

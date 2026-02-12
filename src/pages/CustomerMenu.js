@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { publicAPI } from '../services/api';
 import { useCustomerAuth } from '../contexts/CustomerAuthContext';
 import Checkout from '../components/customer/Checkout';
 import Cart from '../components/customer/Cart';
 import CustomerHeader from '../components/customer/CustomerHeader';
+import PopupBanner from '../components/customer/PopupBanner';
 import Toast, { notify } from '../components/common/Toast';
 
 const CustomerMenu = () => {
@@ -39,16 +40,12 @@ const CustomerMenu = () => {
       return [];
     }
   });
+  
+  // Popup Banner States
+  const [popupBanner, setPopupBanner] = useState(null);
+  const [showPopupBanner, setShowPopupBanner] = useState(false);
 
-  useEffect(() => {
-    fetchMenu();
-  }, []); // Only run once on mount
-
-  useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
-
-  const fetchMenu = async () => {
+  const fetchMenu = useCallback(async () => {
     try {
       setLoading(true);
       const response = await publicAPI.getMenu();
@@ -58,6 +55,65 @@ const CustomerMenu = () => {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const fetchPopupBanner = useCallback(async () => {
+    try {
+      const response = await publicAPI.getActivePopupBanner();
+      const banner = response.data;
+      
+      if (banner && shouldShowPopupBanner(banner)) {
+        setPopupBanner(banner);
+        setShowPopupBanner(true);
+      }
+    } catch (error) {
+      // Silent fail - popup banner is not critical
+      console.log('No active popup banner');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchMenu();
+    fetchPopupBanner();
+  }, [fetchMenu, fetchPopupBanner]); // Only run once on mount
+
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
+
+  const shouldShowPopupBanner = (banner) => {
+    const storageKey = `popup_banner_${banner.id}`;
+    const now = new Date().getTime();
+    const lastShown = localStorage.getItem(storageKey);
+    
+    switch (banner.show_frequency) {
+      case 'always':
+        return true;
+      case 'once_per_day':
+        if (!lastShown) return true;
+        const oneDay = 24 * 60 * 60 * 1000;
+        return now - parseInt(lastShown) > oneDay;
+      case 'once_per_session':
+      default:
+        return !sessionStorage.getItem(storageKey);
+    }
+  };
+
+  const handleClosePopupBanner = () => {
+    if (popupBanner) {
+      const storageKey = `popup_banner_${popupBanner.id}`;
+      const now = new Date().getTime();
+      
+      // Track banner viewing
+      if (popupBanner.show_frequency === 'once_per_day') {
+        localStorage.setItem(storageKey, now.toString());
+      } else {
+        sessionStorage.setItem(storageKey, 'shown');
+      }
+    }
+    
+    setShowPopupBanner(false);
+    setPopupBanner(null);
   };
 
   const isStoreClosed = !menu.store_settings?.order_enabled;
@@ -699,6 +755,14 @@ const CustomerMenu = () => {
           </div>
         </div>
       </footer>
+
+      {/* Popup Banner Modal */}
+      {showPopupBanner && popupBanner && (
+        <PopupBanner
+          banner={popupBanner}
+          onClose={handleClosePopupBanner}
+        />
+      )}
 
       <Toast />
     </div>

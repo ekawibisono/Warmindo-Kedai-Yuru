@@ -22,6 +22,8 @@ Frontend aplikasi Point of Sale (POS) dan customer ordering Kedai Yuru, dibangun
 - **Store Settings**: Atur jam buka/tutup otomatis & status order
 - **Discount Management**: Kelola diskon dan kode promo
 - **Staff Management**: Kelola akun staff & staff key
+- **Customer Points Management**: Kelola sistem poin customer, riwayat transaksi, dan adjustment poin
+- **Popup Banner Management**: Kelola popup banner promosi dengan pengaturan frekuensi dan durasi tampil
 - **WhatsApp Settings**: Konfigurasi notifikasi WhatsApp
 
 ### 👤 Customer Interface (Web Ordering)
@@ -29,10 +31,14 @@ Frontend aplikasi Point of Sale (POS) dan customer ordering Kedai Yuru, dibangun
 - Browse menu produk lengkap dengan kategori & hot deals
 - Pilih modifier (level pedas, topping, dll) dengan validasi grup wajib
 - Shopping cart dengan perhitungan otomatis harga + modifier
+- **Customer Points System**: Sistem poin customer dengan akumulasi dari pembelian
+- **Customer Profile**: Modal profil customer dengan informasi akun dan statistik
 - Checkout online dengan pilihan metode pembayaran (Cash / QRIS)
-- Riwayat pesanan per customer (berdasarkan akun Google)
+- Riwayat pesanan per customer (berdasarkan akun Google) dalam modal terpisah
+- **Popup Banners**: Sistem popup promosi dengan pengaturan frekuensi tampil
 - Tracking pesanan publik dengan token (status real-time + auto-expiry)
 - Tombol "Lacak Pesanan" di riwayat hanya aktif untuk pesanan yang masih berjalan
+- **Privacy Policy & Terms**: Halaman kebijakan privasi dan syarat & ketentuan
 
 ## Tech Stack
 
@@ -40,6 +46,10 @@ Frontend aplikasi Point of Sale (POS) dan customer ordering Kedai Yuru, dibangun
 - **React Router** v6
 - **TailwindCSS** v3 (dengan responsive design untuk mobile/tablet)
 - **Axios** untuk API calls
+- **React OAuth Google** v0.13.4 untuk autentikasi Google customer
+- **React Hot Toast** v2.6.0 untuk notifikasi sistem
+- **QRCode React** v4.2.0 untuk generate QR codes
+- **Hello Pangea DnD** v18.0.1 untuk drag & drop functionality
 - **React App Rewired** untuk custom webpack configuration
 - **JavaScript Obfuscation** untuk production build security
 
@@ -108,11 +118,20 @@ Warmindo-Kedai-Yuru/
 │   │   │   └── ui.js                 # UI utility components
 │   │   ├── customer/
 │   │   │   ├── Cart.js               # Keranjang customer
-│   │   │   └── Checkout.js           # Checkout online customer
+│   │   │   ├── Checkout.js           # Checkout online customer
+│   │   │   ├── CustomerGoogleLogin.js # Komponen login Google customer
+│   │   │   ├── CustomerHeader.js     # Header khusus customer
+│   │   │   ├── CustomerPointsModal.js # Modal poin customer
+│   │   │   ├── CustomerProfileModal.js # Modal profil customer
+│   │   │   ├── OrderHistoryModal.js  # Modal riwayat pesanan
+│   │   │   └── PopupBanner.js        # Komponen popup banner
 │   │   └── shared/
 │   │       └── ProtectedRoute.js     # Route protection (staff)
 │   ├── contexts/
-│   │   └── AuthContext.js            # Staff authentication context
+│   │   ├── AuthContext.js            # Staff authentication context
+│   │   └── CustomerAuthContext.js    # Customer authentication context
+│   ├── hooks/
+│   │   └── useCustomer.js            # Custom hook untuk customer functionality
 │   ├── pages/
 │   │   ├── AdminDashboard.js         # Admin dashboard (mobile responsive)
 │   │   ├── Categories.js             # Category management
@@ -130,7 +149,11 @@ Warmindo-Kedai-Yuru/
 │   │   ├── StaffManagement.js        # Staff management
 │   │   ├── StoreSettings.js          # Store settings
 │   │   ├── CustomerMenu.js           # Customer menu & order page
+│   │   ├── CustomerPointsManagement.js # Manajemen poin customer (Admin)
 │   │   ├── Discounts.js              # Discount management
+│   │   ├── PopupBanners.js           # Popup banner management
+│   │   ├── PrivacyPolicy.js          # Halaman kebijakan privasi
+│   │   ├── TermsOfService.js         # Halaman syarat & ketentuan
 │   │   └── WhatsAppSettings.js       # WhatsApp notification settings
 │   ├── services/
 │   │   └── api.js                    # API service layer (publicAPI & staffAPI)
@@ -155,11 +178,13 @@ Aplikasi ini terintegrasi dengan backend API dengan beberapa kelompok endpoint u
 - `GET  /api/public/orders/:orderNo`            - Detail & tracking publik dengan token
 - `POST /api/public/orders/:orderNo/qris-proof` - Upload bukti bayar QRIS
 - `POST /api/public/discounts/validate`         - Validasi kode diskon
+- `GET  /api/public/popup-banners`              - Ambil popup banners aktif
 
 ### Customer Auth API
 - `POST /api/auth/customer/google`  - Login customer via Google
 - `GET  /api/auth/customer/profile` - Ambil profil customer (butuh JWT)
 - `GET  /api/auth/customer/orders`  - Riwayat pesanan customer (pagination)
+- `GET  /api/auth/customer/points`  - Data poin customer dan riwayat transaksi
 - `POST /api/auth/customer/logout`  - Logout customer (invalidate di client)
 
 ### Staff API (Admin/Kasir)
@@ -175,6 +200,10 @@ Aplikasi ini terintegrasi dengan backend API dengan beberapa kelompok endpoint u
 - `GET/POST/PUT/DELETE /api/staff/discounts...`    - Manajemen diskon
 - `GET/POST/PATCH/DELETE /api/staff/hot-deals...`  - Manajemen hot deals & tier system
 - `GET/POST/PATCH/DELETE /api/staff/management...` - Manajemen staff & staff key
+- `GET/POST/PATCH/DELETE /api/staff/popup-banners...` - Manajemen popup banners
+- `GET  /api/staff/customers/points`               - Data customer dengan sistem poin
+- `GET  /api/staff/customers/:id/points/history`   - Riwayat poin customer
+- `POST /api/staff/customers/:id/points/adjust`    - Adjustment poin customer (manual)
 - `GET  /api/staff/orders/all`                     - Semua pesanan untuk sales report
 - `GET  /api/staff/hot-deals/stats`                - Statistik hot deals
 - `POST /api/staff/hot-deals/auto-update`          - Update otomatis hot deals berdasarkan tier
@@ -209,11 +238,14 @@ Aplikasi ini telah dioptimasi untuk perangkat mobile dan tablet dengan:
 ## Notes
 
 - Staff authentication menggunakan staff key yang diverifikasi ke backend (bukan mock).
-- Customer authentication menggunakan Google OAuth + JWT (disimpan di localStorage).
+- Customer authentication menggunakan Google OAuth + JWT (disimpan di localStorage) dengan context management.
+- **Customer Points System** terintegrasi penuh dengan riwayat transaksi dan manual adjustment.
+- **Popup Banner System** dengan pengaturan frekuensi tampil dan durasi untuk promosi.
 - Image produk saat ini menggunakan URL eksternal (belum ada upload dari frontend).
 - Bukti pembayaran QRIS dan receipt disimpan di backend dan diakses via file server.
 - Hot Deals system menggunakan tier otomatis berdasarkan jumlah produk terjual.
 - Sales Report mendukung export ke CSV dengan berbagai filter.
+- Customer interface dilengkapi dengan modular components (header, profile, points, order history).
 - Semua halaman admin telah dioptimasi untuk mobile dan tablet responsiveness.
 - Production build menggunakan JavaScript obfuscation untuk keamanan.
 
@@ -226,6 +258,9 @@ Aplikasi ini telah dioptimasi untuk perangkat mobile dan tablet dengan:
 - [ ] PWA offline mode untuk kasir
 - [ ] Dark mode theme
 - [ ] Advanced reporting dengan date range picker
+- [ ] Customer loyalty tier system berdasarkan poin
+- [ ] Push notifications untuk customer mobile app
+- [ ] Advanced popup banner scheduling dan targeting
 
 ## Support
 

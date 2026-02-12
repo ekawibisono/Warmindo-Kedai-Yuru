@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCustomerAuth } from '../../contexts/CustomerAuthContext';
 import CustomerGoogleLogin from './CustomerGoogleLogin';
 import CustomerProfileModal from './CustomerProfileModal';
 import OrderHistoryModal from './OrderHistoryModal';
+import CustomerPointsModal from './CustomerPointsModal';
 
 const CustomerHeader = ({ 
   cart, 
@@ -14,11 +15,20 @@ const CustomerHeader = ({
   selectedCategory = 'all', 
   onCategoryChange = () => {} 
 }) => {
-  const { customer, logout } = useCustomerAuth();
+  const { customer, logout, refreshCustomer } = useCustomerAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [showPointsModal, setShowPointsModal] = useState(false);
   const [showMobileCustomerMenu, setShowMobileCustomerMenu] = useState(false);
+
+  // Refresh customer data on mount to ensure points are up to date
+  useEffect(() => {
+    if (customer && refreshCustomer) {
+      refreshCustomer(true); // silent refresh
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id]); // Only re-run when customer ID changes (login/logout)
 
   const handleLoginSuccess = (customerData) => {
     setShowLoginModal(false);
@@ -26,6 +36,22 @@ const CustomerHeader = ({
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleOpenPointsModal = async () => {
+    // Refresh customer data before showing points modal to get latest points
+    if (refreshCustomer) {
+      await refreshCustomer(true); // silent refresh
+    }
+    setShowPointsModal(true);
+  };
+
+  const handleClosePointsModal = async () => {
+    setShowPointsModal(false);
+    // Refresh customer data after closing to update header
+    if (refreshCustomer) {
+      await refreshCustomer(true); // silent refresh
+    }
   };
 
   return (
@@ -64,7 +90,7 @@ const CustomerHeader = ({
                         className="w-7 h-7 rounded-full border border-gray-300"
                       />
                       <span className="text-xs font-medium text-primary-700 max-w-16 truncate">
-                        {(customer.full_name || customer.name).split(' ')[0]}
+                        {(customer.full_name || customer.name || 'User').split(' ')[0]}
                       </span>
                       <svg className={`w-3 h-3 text-primary-600 transition-transform ${showMobileCustomerMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -106,6 +132,19 @@ const CustomerHeader = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                               </svg>
                               <span>Riwayat Pesanan</span>
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                handleOpenPointsModal();
+                                setShowMobileCustomerMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                              </svg>
+                              <span>Poin Saya ({customer.current_points || 0})</span>
                             </button>
                             
                             <button
@@ -194,6 +233,18 @@ const CustomerHeader = ({
                     </button>
 
                     <button
+                      onClick={handleOpenPointsModal}
+                      className="text-xs lg:text-sm text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2 flex items-center transition-colors"
+                      title="Poin Saya"
+                    >
+                      <svg className="w-3.5 h-3.5 lg:w-4 lg:h-4 mr-1 lg:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
+                      <span className="hidden md:inline">{customer.current_points || 0} Poin</span>
+                      <span className="md:hidden">🎯</span>
+                    </button>
+
+                    <button
                       onClick={() => setShowProfileModal(true)}
                       className="text-xs lg:text-sm text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg px-2 py-1.5 lg:px-3 lg:py-2 flex items-center transition-colors"
                       title="Edit Profile"
@@ -258,7 +309,7 @@ const CustomerHeader = ({
             <div className="mt-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white p-3 rounded-lg">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                 <p className="text-sm font-medium">
-                  👋 Selamat datang, {(customer.full_name || customer.name).split(' ')[0]}!
+                  👋 Selamat datang, {(customer.full_name || customer.name || 'User').split(' ')[0]}!
                 </p>
               </div>
             </div>
@@ -343,6 +394,12 @@ const CustomerHeader = ({
       {showOrderHistory && (
         <OrderHistoryModal 
           onClose={() => setShowOrderHistory(false)}
+        />
+      )}
+
+      {showPointsModal && (
+        <CustomerPointsModal 
+          onClose={handleClosePointsModal}
         />
       )}
 

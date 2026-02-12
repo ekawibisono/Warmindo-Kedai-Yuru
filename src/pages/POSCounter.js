@@ -465,13 +465,14 @@ const POSCounter = () => {
         });
     };
 
-    const calculateItemSubtotal = useCallback(() => {
+    // ✅ OPTIMASI: Memoized calculation untuk modal subtotal
+    const modalItemSubtotal = useMemo(() => {
         if (!selectedProduct) return 0;
         // Gunakan original_price jika produk adalah hot deal, jika tidak pakai harga normal
         let price = Number(selectedProduct.original_price || selectedProduct.price || 0);
         if (!Number.isFinite(price)) price = 0;
 
-        Object.values(selectedModifiers).flat().forEach(modId => {
+        Object.values(selectedModifiers || {}).flat().filter(Boolean).forEach(modId => {
             const modifier = menu.modifiers.find(m => m.id === modId);
             if (modifier) {
                 const delta = Number(modifier.price_delta || 0);
@@ -484,15 +485,31 @@ const POSCounter = () => {
         return price * quantity;
     }, [selectedProduct, selectedModifiers, quantity, menu.modifiers]);
 
+    const calculateItemSubtotal = useCallback(() => modalItemSubtotal, [modalItemSubtotal]);
+
+    // ✅ OPTIMASI: Memoized modifier groups untuk selected product
+    const selectedProductModifierGroups = useMemo(() => {
+        if (!selectedProduct) return [];
+        return getProductModifierGroups(selectedProduct.id);
+    }, [selectedProduct, getProductModifierGroups]);
+
+    // ✅ OPTIMASI: Memoized modifiers by group untuk modal
+    const modifiersByGroup = useMemo(() => {
+        const result = {};
+        selectedProductModifierGroups.forEach(group => {
+            result[group.id] = getGroupModifiers(group.id);
+        });
+        return result;
+    }, [selectedProductModifierGroups, getGroupModifiers]);
+
     const canAddToCart = useCallback(() => {
         if (!selectedProduct) return false;
-        const groups = getProductModifierGroups(selectedProduct.id);
-        return groups.every(group => {
+        return selectedProductModifierGroups.every(group => {
             if (!group.is_required) return true;
             const selected = selectedModifiers[group.id] || [];
             return selected.length >= group.min_select;
         });
-    }, [selectedProduct, selectedModifiers, getProductModifierGroups]);
+    }, [selectedProduct, selectedModifiers, selectedProductModifierGroups]);
 
     // Optimized handlers dengan useCallback
     const handleSelectProduct = useCallback((product) => {
@@ -936,9 +953,9 @@ const POSCounter = () => {
                                 <p className="text-gray-600 mb-4">{selectedProduct.description}</p>
                             )}
 
-                            {/* Modifiers */}
-                            {getProductModifierGroups(selectedProduct.id).map(group => {
-                                const modifiers = getGroupModifiers(group.id);
+                            {/* ✅ OPTIMASI: Use memoized data instead of function calls */}
+                            {selectedProductModifierGroups.map(group => {
+                                const modifiers = modifiersByGroup[group.id] || [];
                                 const isSingleSelection = group.selection_type === 'single';
 
                                 return (
@@ -1005,7 +1022,7 @@ const POSCounter = () => {
                                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                     }`}
                             >
-                                Tambah ke Cart - {formatRupiah(calculateItemSubtotal())}
+                                Tambah ke Cart - {formatRupiah(modalItemSubtotal)}
                             </button>
                         </div>
                     </div>

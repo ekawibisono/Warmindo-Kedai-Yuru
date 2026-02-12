@@ -119,6 +119,28 @@ export const publicAPI = {
     });
   },
 
+  // Customer Points System
+  getCustomerPointsSummary: () => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/points/summary', {
+      headers: { 'Authorization': `Bearer ${customerToken}` }
+    });
+  },
+
+  getCustomerPointsHistory: (page = 1, limit = 20) => {
+    const customerToken = localStorage.getItem('customer_token');
+    if (!customerToken) return Promise.reject(new Error('No customer token'));
+    return api.get('/auth/customer/points/history', {
+      headers: { 'Authorization': `Bearer ${customerToken}` },
+      params: { page, limit }
+    });
+  },
+
+  // ========== POPUP BANNER API (NEW) ==========
+  // Get active popup banner for customers
+  getActivePopupBanner: () => api.get('/public/popup-banner/active'),
+
 };
 
 // Staff API (Admin & Kasir)
@@ -179,6 +201,9 @@ export const staffAPI = {
     return api.get(`/staff/orders${queryString ? '?' + queryString : ''}`);
   },
 
+  // Delete order (only for draft status)
+  deleteOrder: (orderId) => api.delete(`/staff/orders/${orderId}`),
+
   // Store Settings
   getStoreSettings: () => api.get('/staff/settings'),
   getStoreStatus: () => api.get('/staff/settings/status'),
@@ -222,8 +247,16 @@ export const staffAPI = {
   sendWhatsAppMessage: (data) => api.post('/whatsapp/send', data),
   // Send bulk WhatsApp message
   sendWhatsAppBulk: (data) => api.post('/whatsapp/send-bulk', data),
-  // Get WhatsApp device info
+  // Get WhatsApp device info (supports both fonnte & self-hosted)
   getWhatsAppDevice: () => api.get('/whatsapp/device'),
+  // Restart WhatsApp service (self-hosted only)
+  reconnectWhatsApp: () => api.post('/whatsapp/reconnect'),
+  // Logout from WhatsApp (self-hosted only)
+  logoutWhatsApp: () => api.post('/whatsapp/logout'),
+  // Get message usage statistics (anti-ban monitoring)
+  getWhatsAppMessageStats: () => api.get('/whatsapp/message-stats'),
+  // Get comprehensive WhatsApp status
+  getWhatsAppStatus: () => api.get('/whatsapp/status'),
   // Validate WhatsApp number
   validateWhatsAppNumber: (number) => api.post('/whatsapp/validate', { number }),
 
@@ -244,6 +277,38 @@ export const staffAPI = {
   // ========== CUSTOMER SEARCH API (NEW) ==========
   // Search existing customers for POS integration
   searchCustomers: (query) => api.get(`/staff/customers/search?q=${encodeURIComponent(query)}`),
+
+  // ========== CUSTOMER POINTS MANAGEMENT API (NEW) ==========
+  // Get list of customers with their points
+  getCustomerPointsList: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.page) params.append('page', filters.page);
+    if (filters.limit) params.append('limit', filters.limit);
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.minPoints) params.append('minPoints', filters.minPoints);
+    return api.get(`/staff/customer-points?${params.toString()}`);
+  },
+  // Get customer points history (admin view)
+  getCustomerPointsHistory: (customerId, page = 1, limit = 20) => 
+    api.get(`/staff/customer-points/${customerId}/history?page=${page}&limit=${limit}`),
+  // Adjust customer points manually
+  adjustCustomerPoints: (customerId, data) => 
+    api.post(`/staff/customer-points/${customerId}/adjust`, data),
+
+  // ========== POPUP BANNER MANAGEMENT API (NEW) ==========
+  // Get all popup banners
+  getPopupBanners: () => api.get('/staff/popup-banners'),
+  // Get single popup banner
+  getPopupBannerById: (id) => api.get(`/staff/popup-banners/${id}`),
+  // Create new popup banner
+  createPopupBanner: (data) => api.post('/staff/popup-banners', data),
+  // Update popup banner
+  updatePopupBanner: (id, data) => api.put(`/staff/popup-banners/${id}`, data),
+  // Delete popup banner
+  deletePopupBanner: (id) => api.delete(`/staff/popup-banners/${id}`),
+  // Toggle popup banner status
+  togglePopupBanner: (id) => api.patch(`/staff/popup-banners/${id}/toggle`),
 
 };
 
