@@ -14,24 +14,30 @@ const StoreSettings = () => {
         store_name: '',
         store_address: '',
         store_phone: '',
+        owner_phone: '',
         // ✅ Jam operasional settings
         auto_schedule_enabled: false,
         opening_time: '09:00',
         closing_time: '21:30',
         timezone: 'Asia/Jakarta',
+        // ✅ Maintenance mode settings
+        maintenance_mode: false,
+        maintenance_message: 'Maaf, kami sedang melakukan maintenance. Silakan coba lagi nanti.',
         updated_at: null
     });
 
     const [editMode, setEditMode] = useState({
         store_name: false,
         store_address: false,
-        store_phone: false
+        store_phone: false,
+        owner_phone: false
     });
 
     const [tempValues, setTempValues] = useState({
         store_name: '',
         store_address: '',
-        store_phone: ''
+        store_phone: '',
+        owner_phone: ''
     });
 
     const fetchRealTimeStatus = useCallback(async () => {
@@ -54,11 +60,15 @@ const StoreSettings = () => {
                 store_name: '',
                 store_address: '',
                 store_phone: '',
+                owner_phone: '',
                 // ✅ Default jam operasional
                 auto_schedule_enabled: false,
                 opening_time: '09:00',
                 closing_time: '21:30',
                 timezone: 'Asia/Jakarta',
+                // ✅ Default maintenance mode
+                maintenance_mode: false,
+                maintenance_message: 'Maaf, kami sedang melakukan maintenance. Silakan coba lagi nanti.',
                 ...(response.data.settings || {})
             };
             setSettings(fetchedSettings);
@@ -66,7 +76,8 @@ const StoreSettings = () => {
             setTempValues({
                 store_name: fetchedSettings.store_name || '',
                 store_address: fetchedSettings.store_address || '',
-                store_phone: fetchedSettings.store_phone || ''
+                store_phone: fetchedSettings.store_phone || '',
+                owner_phone: fetchedSettings.owner_phone || ''
             });
             
             // Also fetch real-time status
@@ -212,6 +223,23 @@ const StoreSettings = () => {
             notify.error(error.response?.data?.error || 'Gagal sync auto-schedule');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleToggleMaintenance = async () => {
+        const newValue = !settings.maintenance_mode;
+        await updateSetting('maintenance_mode', newValue);
+    };
+
+    const handleMaintenanceMessageChange = async (e) => {
+        const newMessage = e.target.value;
+        // Update local state immediately
+        setSettings(prev => ({ ...prev, maintenance_message: newMessage }));
+    };
+
+    const handleSaveMaintenanceMessage = async () => {
+        if (settings.maintenance_message.trim()) {
+            await updateSetting('maintenance_message', settings.maintenance_message);
         }
     };
 
@@ -397,6 +425,55 @@ const StoreSettings = () => {
                                         </p>
                                         <button
                                             onClick={() => handleEditClick('store_phone')}
+                                            className="text-primary-600 hover:text-primary-700 text-sm font-medium whitespace-nowrap px-2 py-1"
+                                        >
+                                            Edit
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Owner Phone */}
+                            <div className="mb-0">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Nomor Telepon Owner (untuk notifikasi pesanan)
+                                </label>
+                                <p className="text-xs text-gray-500 mb-2">
+                                    Nomor WhatsApp owner yang akan menerima notifikasi setiap ada pesanan masuk
+                                </p>
+                                {editMode.owner_phone ? (
+                                    <div className="space-y-3 sm:space-y-0 sm:flex sm:items-center sm:gap-2">
+                                        <input
+                                            type="text"
+                                            value={tempValues.owner_phone}
+                                            onChange={(e) => handleTempValueChange('owner_phone', e.target.value)}
+                                            className="w-full sm:flex-1 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                            placeholder="Contoh: 6281234567890 (gunakan 62)"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleSaveEdit('owner_phone')}
+                                                disabled={saving}
+                                                className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                            >
+                                                Simpan
+                                            </button>
+                                            <button
+                                                onClick={() => handleCancelEdit('owner_phone')}
+                                                disabled={saving}
+                                                className="flex-1 sm:flex-none px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 text-sm"
+                                            >
+                                                ✕ Batal
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-gray-900 font-medium flex-1 mr-4">
+                                            {settings.owner_phone || '(Belum diisi)'}
+                                        </p>
+                                        <button
+                                            onClick={() => handleEditClick('owner_phone')}
                                             className="text-primary-600 hover:text-primary-700 text-sm font-medium whitespace-nowrap px-2 py-1"
                                         >
                                             Edit
@@ -782,6 +859,185 @@ const StoreSettings = () => {
                             </button>
                         </div>
                     )}
+
+                    {/* Maintenance Mode Card */}
+                    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                        <div className="p-4 sm:p-6">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 mb-6 sm:mb-0">
+                                    <div className="flex items-center sm:block mb-4 sm:mb-0">
+                                        <div className={`p-3 rounded-lg mr-3 sm:mr-0 ${
+                                            settings.maintenance_mode
+                                                ? 'bg-orange-100' 
+                                                : 'bg-gray-100'
+                                        }`}>
+                                            <svg 
+                                                className={`w-6 h-6 sm:w-8 sm:h-8 ${
+                                                    settings.maintenance_mode
+                                                        ? 'text-orange-600' 
+                                                        : 'text-gray-600'
+                                                }`} 
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                    strokeWidth={2} 
+                                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" 
+                                                />
+                                                <path 
+                                                    strokeLinecap="round" 
+                                                    strokeLinejoin="round" 
+                                                    strokeWidth={2} 
+                                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" 
+                                                />
+                                            </svg>
+                                        </div>
+                                        <div className="sm:hidden">
+                                            <h2 className="text-lg font-bold text-gray-900">
+                                                Mode Maintenance For Developer
+                                            </h2>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h2 className="hidden sm:block text-xl font-bold text-gray-900 mb-2">
+                                            Mode Maintenance For Developer
+                                        </h2>
+
+                                        {/* Status Display */}
+                                        <div className={`p-4 rounded-lg mb-4 border-2 ${
+                                            settings.maintenance_mode
+                                                ? 'bg-gradient-to-r from-orange-50 to-red-50 border-orange-200' 
+                                                : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200'
+                                        }`}>
+                                            <div className="flex items-center mb-2">
+                                                <div className={`w-3 h-3 rounded-full mr-3 ${
+                                                    settings.maintenance_mode ? 'bg-orange-500 animate-pulse' : 'bg-gray-400'
+                                                }`}></div>
+                                                <p className={`font-bold text-lg ${
+                                                    settings.maintenance_mode ? 'text-orange-800' : 'text-gray-700'
+                                                }`}>
+                                                    {settings.maintenance_mode ? '🛠️ MAINTENANCE AKTIF' : '✅ SISTEM NORMAL'}
+                                                </p>
+                                            </div>
+                                            <p className={`text-sm ${
+                                                settings.maintenance_mode ? 'text-orange-700' : 'text-gray-600'
+                                            }`}>
+                                                {settings.maintenance_mode
+                                                    ? 'Customer akan melihat halaman maintenance'
+                                                    : 'Website berjalan normal untuk customer'
+                                                }
+                                            </p>
+                                        </div>
+
+                                        {/* Maintenance Message Input */}
+                                        {settings.maintenance_mode && (
+                                            <div className="mb-4">
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Pesan Maintenance (Opsional)
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    <textarea
+                                                        value={settings.maintenance_message}
+                                                        onChange={handleMaintenanceMessageChange}
+                                                        rows="2"
+                                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                                        placeholder="Masukkan pesan maintenance..."
+                                                    />
+                                                    <button
+                                                        onClick={handleSaveMaintenanceMessage}
+                                                        disabled={saving}
+                                                        className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                                                    >
+                                                        Simpan
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Info Box */}
+                                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-3 sm:p-4">
+                                            <div className="flex items-start">
+                                                <div className="bg-purple-100 rounded-full p-2 mr-3 flex-shrink-0">
+                                                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs sm:text-sm font-semibold text-purple-800 mb-2">Cara Kerja Mode Maintenance</p>
+                                                    <ul className="text-xs sm:text-sm text-purple-700 space-y-1">
+                                                        <li className="flex items-start">
+                                                            <span className="text-purple-500 mr-2">•</span>
+                                                            <span>Customer akan melihat halaman maintenance yang menarik</span>
+                                                        </li>
+                                                        <li className="flex items-start">
+                                                            <span className="text-purple-500 mr-2">•</span>
+                                                            <span>Admin tetap bisa akses dashboard (bypass otomatis)</span>
+                                                        </li>
+                                                        <li className="flex items-start">
+                                                            <span className="text-purple-500 mr-2">•</span>
+                                                            <span>Tidak perlu restart server atau ubah nginx</span>
+                                                        </li>
+                                                        <li className="flex items-start">
+                                                            <span className="text-purple-500 mr-2">•</span>
+                                                            <span>Bisa langsung aktifkan/nonaktifkan kapan saja</span>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Toggle Button */}
+                                <div className="flex justify-center sm:justify-start sm:ml-4">
+                                    <div className="flex flex-col items-center">
+                                        <div className={`p-4 rounded-lg mb-3 ${
+                                            settings.maintenance_mode ? 'bg-orange-50' : 'bg-gray-50'
+                                        }`}>
+                                            <button
+                                                onClick={handleToggleMaintenance}
+                                                disabled={saving}
+                                                className={`relative inline-flex h-12 w-24 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-4 ${
+                                                    settings.maintenance_mode
+                                                        ? 'bg-orange-600 focus:ring-orange-200 shadow-lg shadow-orange-200' 
+                                                        : 'bg-gray-400 focus:ring-gray-200'
+                                                } ${saving ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-10 w-10 transform rounded-full bg-white shadow-lg transition-transform duration-300 flex items-center justify-center ${
+                                                        settings.maintenance_mode ? 'translate-x-12' : 'translate-x-1'
+                                                    }`}
+                                                >
+                                                    {settings.maintenance_mode ? (
+                                                        <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                        </svg>
+                                                    )}
+                                                </span>
+                                            </button>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className={`text-sm font-bold ${
+                                                settings.maintenance_mode ? 'text-orange-600' : 'text-gray-600'
+                                            }`}>
+                                                {settings.maintenance_mode ? '🛠️ AKTIF' : '✅ NORMAL'}
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                {settings.maintenance_mode ? 'Maintenance' : 'Berjalan'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Last Updated Info */}
                     {settings.updated_at && (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../components/admin/AdminLayout';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import { staffAPI } from '../services/api';
 import { notify } from '../components/common/Toast';
 
@@ -9,6 +10,11 @@ const VoucherRewards = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    voucherId: null,
+    voucherName: ''
+  });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -145,13 +151,21 @@ const VoucherRewards = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Yakin ingin menghapus voucher ini?')) return;
+  const handleDelete = (id, name) => {
+    setDeleteDialog({
+      isOpen: true,
+      voucherId: id,
+      voucherName: name
+    });
+  };
 
+  const confirmDeleteVoucher = async () => {
     try {
-      await staffAPI.deleteVoucherReward(id);
-      notify.success('Voucher berhasil dihapus');
+      // Note: Backend API does soft delete (removes from active listing)
+      await staffAPI.deleteVoucherReward(deleteDialog.voucherId);
+      notify.success('Voucher berhasil dihapus dari daftar');
       fetchVouchers();
+      setDeleteDialog({ isOpen: false, voucherId: null, voucherName: '' });
     } catch (error) {
       notify.error('Gagal menghapus voucher');
       console.error('Error deleting voucher:', error);
@@ -281,7 +295,7 @@ const VoucherRewards = () => {
                   Edit
                 </button>
                 <button
-                  onClick={() => handleDelete(voucher.id)}
+                  onClick={() => handleDelete(voucher.id, voucher.name)}
                   className="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
                 >
                   Hapus
@@ -515,6 +529,18 @@ const VoucherRewards = () => {
           </div>
         </div>
       )}
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialog.isOpen}
+        title="Hapus Voucher?"
+        message={`Apakah Anda yakin ingin menghapus voucher "${deleteDialog.voucherName}"? Voucher akan dihapus dari daftar dan tidak bisa ditukar lagi oleh customer.`}
+        confirmText="Hapus"
+        cancelText="Batal"
+        onConfirm={confirmDeleteVoucher}
+        onClose={() => setDeleteDialog({ isOpen: false, voucherId: null, voucherName: '' })}
+        type="danger"
+      />
       </div>
     </AdminLayout>
   );

@@ -5,56 +5,65 @@ import Receipt from '../components/admin/Receipt';
 import { publicAPI, staffAPI } from '../services/api';
 import { notify } from '../components/common/Toast';
 
-// Memoized Product Card Component untuk performance
+// Optimized Product Card Component dengan lazy loading
 const ProductCard = memo(({ product, formatRupiah, onSelectProduct }) => {
-    const productPrice = formatRupiah(product.original_price || product.price);
-    const soldBadge = typeof product.total_sold === 'number' && product.total_sold > 0;
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    
+    // Memoized price untuk avoid recalculation
+    const productPrice = useMemo(() => 
+        formatRupiah(product.original_price || product.price), 
+        [product.original_price, product.price, formatRupiah]
+    );
+    
+    const soldBadge = product.total_sold > 0;
     
     return (
         <button
             type="button"
             onClick={() => onSelectProduct(product)}
-            className="group bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-2xl transition-all text-left flex flex-col overflow-hidden text-sm"
+            className="group bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-lg transition-shadow text-left flex flex-col overflow-hidden text-sm"
         >
             <div className="relative">
-                {product.image_url ? (
-                    <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-full h-32 sm:h-36 object-cover"
-                    />
+                {product.image_url && !imageError ? (
+                    <>
+                        {!imageLoaded && (
+                            <div className="w-full h-28 sm:h-32 bg-gray-200 animate-pulse"></div>
+                        )}
+                        <img
+                            src={product.image_url}
+                            alt={product.name}
+                            loading="lazy"
+                            className={`w-full h-28 sm:h-32 object-cover transition-opacity ${
+                                imageLoaded ? 'opacity-100' : 'opacity-0 absolute'
+                            }`}
+                            onLoad={() => setImageLoaded(true)}
+                            onError={() => setImageError(true)}
+                        />
+                    </>
                 ) : (
-                    <div className="w-full h-32 sm:h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <div className="text-4xl"></div>
+                    <div className="w-full h-28 sm:h-32 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                        <div className="text-2xl">🍽️</div>
                     </div>
                 )}
                 {soldBadge && (
-                    <div className="absolute top-2 left-2 bg-green-500 text-white text-[9px] sm:text-[10px] px-2 py-1 rounded-full font-bold">
-                        {product.total_sold} terjual
+                    <div className="absolute top-1 left-1 bg-green-500 text-white text-[8px] px-1.5 py-0.5 rounded-md font-medium">
+                        {product.total_sold}
                     </div>
                 )}
             </div>
-            <div className="flex-1 flex flex-col p-3 sm:p-4">
-                <h3 className="font-bold text-gray-900 text-xs sm:text-sm leading-tight mb-2 group-hover:text-primary-600 transition-colors">
+            <div className="flex-1 flex flex-col p-2 sm:p-3">
+                <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight mb-1">
                     {product.name}
                 </h3>
-                <div className="text-primary-600 font-bold text-sm sm:text-base mb-auto">
+                <div className="text-primary-600 font-bold text-sm mb-auto">
                     {productPrice}
                 </div>
                 {product.description && (
-                    <p
-                        className="text-[11px] sm:text-xs text-gray-500 mt-2"
-                        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-                    >
+                    <p className="text-[10px] sm:text-xs text-gray-500 mt-1 line-clamp-2">
                         {product.description}
                     </p>
                 )}
-                <div className="mt-auto pt-3 sm:pt-4 flex items-center justify-between text-[11px] sm:text-xs text-gray-500">
-                    <span>Ketuk untuk detail</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                </div>
             </div>
         </button>
     );
@@ -75,7 +84,7 @@ const POSCounter = () => {
     const [quantity, setQuantity] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [productsToShow, setProductsToShow] = useState(20); // Limit initial products
+    const [productsToShow, setProductsToShow] = useState(8); // Reduced for better performance
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [receipt, setReceipt] = useState(null);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -140,7 +149,7 @@ const POSCounter = () => {
         }
     };
 
-    // Search existing customers dengan debouncing
+    // Search existing customers dengan debouncing dan optimization
     const searchCustomers = useCallback(async (query) => {
         if (!query.trim()) {
             setSearchResults([]);
@@ -152,16 +161,16 @@ const POSCounter = () => {
             const response = await staffAPI.searchCustomers(query);
             const data = response.data;
             
-            // Add realtime info to results
-            const enhancedResults = (data.customers || []).map(customer => ({
+            // Optimize data processing dengan caching
+            const enhancedResults = (data.customers || []).map((customer, index) => ({
                 ...customer,
+                id: customer.id || `customer-${index}`, // Ensure unique ID
                 isOnline: Math.random() > 0.7, // Simulate online status
                 lastSeen: customer.last_order ? new Date(customer.last_order).toLocaleDateString('id-ID') : 'Tidak diketahui'
             }));
             
             setSearchResults(enhancedResults);
             
-            // Show data source info
             if (data.source === 'mock') {
                 console.log('Using mock data - will switch to real database when available');
             }
@@ -191,6 +200,51 @@ const POSCounter = () => {
         setSearchResults([]);
     }, []);
 
+    // Optimized customer search dengan memoization
+    const CustomerSearchResults = useMemo(() => {
+        if (!customerSearchQuery.trim() || isSearching) return null;
+        
+        // Limit results untuk performance (maksimal 5 results)
+        const limitedResults = searchResults.slice(0, 5);
+        
+        return limitedResults.map((customer, index) => (
+            <button
+                key={`customer-${customer.id || index}`}
+                type="button"
+                onClick={() => {
+                    handleSelectExistingCustomer(customer);
+                    notify.success(`Customer ${customer.name} dipilih`);
+                }}
+                className="w-full p-3 text-left hover:bg-blue-50 rounded-lg border-b border-blue-100 last:border-b-0"
+            >
+                <div className="flex items-center space-x-3">
+                    {customer.profile_picture ? (
+                        <img
+                            src={customer.profile_picture}
+                            alt={customer.name}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                            loading="lazy"
+                        />
+                    ) : (
+                        <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                            {customer.name.charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                            <p className="font-semibold text-gray-900 truncate text-sm">{customer.name}</p>
+                            {customer.isOnline && (
+                                <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-600 truncate">📱 {customer.phone}</p>
+                        <p className="text-xs text-gray-500 truncate">📧 {customer.email}</p>
+                    </div>
+                </div>
+            </button>
+        ));
+    }, [customerSearchQuery, isSearching, searchResults, handleSelectExistingCustomer]);
+    
     // Reset customer selection dengan useCallback
     const resetCustomerSelection = useCallback(() => {
         setCustomerType('guest');
@@ -203,7 +257,73 @@ const POSCounter = () => {
             customer_phone: '',
         }));
     }, []);
-    const API_BASE_URL = process.env.REACT_APP_API_URL
+
+    // Format rupiah function
+    const formatRupiah = useCallback((amount) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    }, []);
+
+    // Optimized cart item component 
+    const CartItem = useCallback(({ item, index, onRemove, onUpdateQty }) => {
+        // Use item.subtotal directly without useMemo to avoid hooks in callback
+        const itemSubtotal = item.subtotal;
+        
+        return (
+            <div className="border border-gray-100 rounded-2xl p-4 shadow-sm">
+                <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1">
+                        <p className="font-semibold text-gray-900">{item.product_name}</p>
+                        {item.modifiers.length > 0 && (
+                            <div className="mt-1 space-y-1 text-xs text-gray-600">
+                                {item.modifiers.map((m, idx) => (
+                                    <div key={`mod-${idx}`} className="flex items-center gap-2">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-primary-500"></span>
+                                        <span>{m.name}</span>
+                                        {Number(m.price_delta || 0) > 0 && (
+                                            <span className="text-primary-600 font-semibold">+{formatRupiah(Number(m.price_delta || 0))}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => onRemove(index)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                        <button
+                            onClick={() => onUpdateQty(index, item.quantity - 1)}
+                            className="w-10 h-10 text-lg font-semibold text-gray-600 hover:bg-gray-100"
+                        >
+                            −
+                        </button>
+                        <span className="w-12 text-center font-bold">{item.quantity}</span>
+                        <button
+                            onClick={() => onUpdateQty(index, item.quantity + 1)}
+                            className="w-10 h-10 text-lg font-semibold text-white bg-primary-600 hover:bg-primary-700"
+                        >
+                            +
+                        </button>
+                    </div>
+                    <p className="text-lg font-bold text-primary-600">{formatRupiah(itemSubtotal)}</p>
+                </div>
+            </div>
+        );
+    }, [formatRupiah]);
+    
+    const API_BASE_URL = process.env.REACT_APP_API_URL;
     const normalizePhone62 = (raw) => {
         const digits = String(raw || "").replace(/\D/g, "");
         if (!digits) return "";
@@ -401,19 +521,6 @@ const POSCounter = () => {
         }
     };
 
-    // Optimized format function dengan memoization
-    const formatRupiah = useCallback((amount) => {
-        const numAmount = Number(amount);
-        if (!Number.isFinite(numAmount)) {
-            return 'Rp 0';
-        }
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-        }).format(numAmount);
-    }, []);
-
     const getProductModifierGroups = useCallback((productId) => {
         const mappings = (menu.product_modifier_groups || [])
             .filter((pmg) => pmg.product_id === productId)
@@ -587,27 +694,44 @@ const POSCounter = () => {
         return cart.reduce((sum, item) => sum + item.subtotal, 0);
     }, [cart]);
 
-    const cartTotal = useMemo(() => getTotalAmount(), [getTotalAmount]);
+    // Memoized cart total dengan dependency yang lebih spesifik
+    const cartTotal = useMemo(() => {
+        if (cart.length === 0) return 0;
+        return cart.reduce((sum, item) => sum + item.subtotal, 0);
+    }, [cart]);
+    
+    // Memoized cart count untuk performa
+    const cartCount = useMemo(() => cart.length, [cart.length]);
 
     // Optimized product filtering dengan useMemo dan pagination
     const filteredProducts = useMemo(() => {
+        // Early return jika tidak ada products
+        if (!menu.products?.length) return [];
+        
         const filtered = menu.products.filter(product => {
-            if (!product.is_active) return false;
+            if (!product?.is_active) return false;
+            
+            // Cache toLowerCase untuk search performance
+            const searchLower = searchQuery.toLowerCase();
+            const productNameLower = product.name?.toLowerCase() || '';
+            
             const matchesCategory = !selectedCategory || String(product.category_id) === String(selectedCategory);
-            const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = !searchQuery || productNameLower.includes(searchLower);
+            
             return matchesCategory && matchesSearch;
         });
-        return filtered.slice(0, productsToShow); // Limit products shown
+        
+        return filtered.slice(0, productsToShow);
     }, [menu.products, selectedCategory, searchQuery, productsToShow]);
 
     // Function to load more products
     const loadMoreProducts = useCallback(() => {
-        setProductsToShow(prev => prev + 20);
+        setProductsToShow(prev => prev + 8);
     }, []);
 
     // Reset pagination when filters change
     useEffect(() => {
-        setProductsToShow(20);
+        setProductsToShow(8);
     }, [selectedCategory, searchQuery]);
 
     const handleSubmitOrder = async () => {
@@ -841,68 +965,27 @@ const POSCounter = () => {
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <p className="text-lg font-semibold text-gray-900">Keranjang</p>
-                                <p className="text-sm text-gray-500">{cart.length} item dipilih</p>
+                                <p className="text-sm text-gray-500">{cartCount} item dipilih</p>
                             </div>
                             <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary-50 text-primary-700">Total {formatRupiah(cartTotal)}</span>
                         </div>
                         <div className="flex-1 overflow-y-auto pr-1 space-y-4">
-                            {cart.length === 0 ? (
+                            {cartCount === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-center text-gray-500">
                                     <div className="text-5xl mb-3">🛒</div>
                                     <p className="font-medium">Keranjang masih kosong</p>
                                     <p className="text-sm text-gray-400 mt-1">Pilih produk untuk mulai membuat pesanan.</p>
                                 </div>
                             ) : (
-                                cart.map((item, index) => {
-                                    return (
-                                        <div key={index} className="border border-gray-100 rounded-2xl p-4 shadow-sm">
-                                            <div className="flex justify-between items-start gap-4">
-                                                <div className="flex-1">
-                                                    <p className="font-semibold text-gray-900">{item.product_name}</p>
-                                                    {item.modifiers.length > 0 && (
-                                                        <div className="mt-1 space-y-1 text-xs text-gray-600">
-                                                            {item.modifiers.map((m, idx) => (
-                                                                <div key={idx} className="flex items-center gap-2">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary-500"></span>
-                                                                    <span>{m.name}</span>
-                                                                    {Number(m.price_delta || 0) > 0 && (
-                                                                        <span className="text-primary-600 font-semibold">+{formatRupiah(Number(m.price_delta || 0))}</span>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={() => removeFromCart(index)}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg p-1.5 transition-colors"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                            <div className="mt-3 flex items-center justify-between">
-                                                <div className="flex items-center bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
-                                                    <button
-                                                        onClick={() => updateCartItemQty(index, item.quantity - 1)}
-                                                        className="w-10 h-10 text-lg font-semibold text-gray-600 hover:bg-gray-100"
-                                                    >
-                                                        −
-                                                    </button>
-                                                    <span className="w-12 text-center font-bold">{item.quantity}</span>
-                                                    <button
-                                                        onClick={() => updateCartItemQty(index, item.quantity + 1)}
-                                                        className="w-10 h-10 text-lg font-semibold text-white bg-primary-600 hover:bg-primary-700"
-                                                    >
-                                                        +
-                                                    </button>
-                                                </div>
-                                                <p className="text-lg font-bold text-primary-600">{formatRupiah(item.subtotal)}</p>
-                                            </div>
-                                        </div>
-                                    );
-                                })
+                                cart.map((item, index) => (
+                                    <CartItem 
+                                        key={`cart-${index}-${item.product_name}`}
+                                        item={item}
+                                        index={index}
+                                        onRemove={removeFromCart}
+                                        onUpdateQty={updateCartItemQty}
+                                    />
+                                ))
                             )}
                         </div>
                         <div className="mt-4 border-t pt-4 space-y-3">
@@ -912,7 +995,7 @@ const POSCounter = () => {
                             </div>
                             <button
                                 onClick={() => setShowPaymentModal(true)}
-                                disabled={cart.length === 0}
+                                disabled={cartCount === 0}
                                 className="w-full py-3 rounded-2xl font-bold text-white bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Proses Pembayaran
@@ -1031,10 +1114,10 @@ const POSCounter = () => {
 
             {/* Payment Modal */}
             {showPaymentModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-3 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[95vh] flex flex-col">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-3 z-50">
+                    <div className="bg-white rounded-xl shadow-lg w-full max-w-lg max-h-[95vh] flex flex-col">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-4 text-white rounded-t-2xl">
+                        <div className="bg-primary-600 px-6 py-4 text-white rounded-t-xl">
                             <div className="flex justify-between items-center">
                                 <div>
                                     <h2 className="text-xl font-bold">Info Pelanggan & Pembayaran</h2>
@@ -1042,8 +1125,7 @@ const POSCounter = () => {
                                 </div>
                                 <button
                                     onClick={() => setShowPaymentModal(false)}
-                                    className="text-white hover:text-primary-200 p-1 hover:bg-primary-800 rounded-lg transition-colors"
-                                >
+                                    className="text-white hover:text-primary-200 p-1 hover:bg-primary-700 rounded-lg">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
@@ -1052,79 +1134,47 @@ const POSCounter = () => {
                         </div>
 
                         {/* Content - Scrollable */}
-                        <div className="flex-1 p-6 overflow-y-auto"
-                             style={{ maxHeight: 'calc(95vh - 200px)' }}>
-                            <div className="space-y-6">
+                        <div className="flex-1 p-6 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 200px)' }}>
+                            <div className="space-y-5">
                                 {/* Customer Type Selection */}
-                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
-                                    <label className="block text-sm font-semibold text-blue-800 mb-4 flex items-center space-x-2">
-                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                                        </svg>
-                                        <span>Pilih Tipe Customer</span>
+                                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                    <label className="block text-sm font-semibold text-blue-800 mb-3">
+                                        🔹 Pilih Tipe Customer
                                     </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setCustomerType('guest');
                                                 resetCustomerSelection();
                                             }}
-                                            className={`group relative overflow-hidden px-5 py-4 rounded-xl border-2 transition-all duration-300 ${
+                                            className={`px-4 py-3 rounded-lg border-2 text-center ${
                                                 customerType === 'guest'
-                                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white border-green-500 shadow-lg transform scale-105'
-                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-green-300 hover:bg-green-50 hover:shadow-md'
+                                                    ? 'bg-green-500 text-white border-green-500'
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-green-300'
                                             }`}
                                         >
-                                            {customerType === 'guest' && (
-                                                <div className="absolute top-1 right-1 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-2 py-1">
-                                                    <span className="text-xs font-bold text-white">AKTIF</span>
-                                                </div>
-                                            )}
-                                            <div className="flex flex-col items-center text-center space-y-2">
-                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                                                    customerType === 'guest' ? 'bg-white bg-opacity-20' : 'bg-green-100'
-                                                }`}>
-                                                    <svg className={`w-6 h-6 ${customerType === 'guest' ? 'text-white' : 'text-green-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-base">Customer Baru</div>
-                                                    <div className={`text-xs ${customerType === 'guest' ? 'text-white text-opacity-90' : 'text-gray-500'}`}>
-                                                        Pembelian tanpa registrasi
-                                                    </div>
-                                                </div>
+                                            <div className="font-medium text-sm">Customer Baru</div>
+                                            <div className={`text-xs ${
+                                                customerType === 'guest' ? 'text-green-100' : 'text-gray-500'
+                                            }`}>
+                                                Tanpa registrasi
                                             </div>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setCustomerType('existing')}
-                                            className={`group relative overflow-hidden px-5 py-4 rounded-xl border-2 transition-all duration-300 ${
+                                            className={`px-4 py-3 rounded-lg border-2 text-center ${
                                                 customerType === 'existing'
-                                                    ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-blue-500 shadow-lg transform scale-105'
-                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md'
+                                                    ? 'bg-blue-500 text-white border-blue-500'
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
                                             }`}
                                         >
-                                            {customerType === 'existing' && (
-                                                <div className="absolute top-1 right-1 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-2 py-1">
-                                                    <span className="text-xs font-bold text-white">AKTIF</span>
-                                                </div>
-                                            )}
-                                            <div className="flex flex-col items-center text-center space-y-2">
-                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                                                    customerType === 'existing' ? 'bg-white bg-opacity-20' : 'bg-blue-100'
-                                                }`}>
-                                                    <svg className={`w-6 h-6 ${customerType === 'existing' ? 'text-white' : 'text-blue-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-base">Customer Terdaftar</div>
-                                                    <div className={`text-xs ${customerType === 'existing' ? 'text-white text-opacity-90' : 'text-gray-500'}`}>
-                                                        Akun member dengan poin
-                                                    </div>
-                                                </div>
+                                            <div className="font-medium text-sm">Customer Terdaftar</div>
+                                            <div className={`text-xs ${
+                                                customerType === 'existing' ? 'text-blue-100' : 'text-gray-500'
+                                            }`}>
+                                                Member dengan poin
                                             </div>
                                         </button>
                                     </div>
@@ -1132,53 +1182,29 @@ const POSCounter = () => {
 
                                 {/* Existing Customer Search */}
                                 {customerType === 'existing' && (
-                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                         <label className="block text-sm font-semibold text-blue-800 mb-3">
-                                            Cari Customer {selectedCustomer && <span className="text-green-600">✓</span>}
+                                            🔍 Cari Customer {selectedCustomer && <span className="text-green-600">✓</span>}
                                         </label>
                                         {selectedCustomer ? (
-                                            <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-4">
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                                 <div className="flex justify-between items-start">
                                                     <div className="flex space-x-3">
-                                                        {selectedCustomer.avatar ? (
-                                                            <img 
-                                                                src={selectedCustomer.avatar} 
-                                                                alt={selectedCustomer.name}
-                                                                className="w-12 h-12 rounded-full border-2 border-white shadow-md"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
-                                                                {selectedCustomer.name.charAt(0).toUpperCase()}
-                                                            </div>
-                                                        )}
+                                                        <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                                            {selectedCustomer.name.charAt(0).toUpperCase()}
+                                                        </div>
                                                         <div>
-                                                            <p className="font-bold text-green-800 text-lg">{selectedCustomer.name}</p>
-                                                            <p className="text-sm text-green-600 flex items-center space-x-1">
-                                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                                                                </svg>
-                                                                <span>{selectedCustomer.phone}</span>
-                                                            </p>
-                                                            <p className="text-sm text-green-600 flex items-center space-x-1">
-                                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V19C3 20.1 3.9 21 5 21H11V19H5V3H15V9H21Z"/>
-                                                                </svg>
-                                                                <span>{selectedCustomer.email}</span>
-                                                            </p>
+                                                            <p className="font-bold text-green-800">{selectedCustomer.name}</p>
+                                                            <p className="text-sm text-green-600">📱 {selectedCustomer.phone}</p>
+                                                            <p className="text-sm text-green-600">📧 {selectedCustomer.email}</p>
                                                             {selectedCustomer.order_count > 0 && (
                                                                 <div className="flex items-center space-x-2 mt-2">
-                                                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
+                                                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-md font-medium">
                                                                         {selectedCustomer.order_count} orders
                                                                     </span>
                                                                     {selectedCustomer.order_count >= 10 && (
-                                                                        <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full font-medium">
+                                                                        <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-md font-medium">
                                                                             VIP
-                                                                        </span>
-                                                                    )}
-                                                                    {selectedCustomer.isOnline && (
-                                                                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full font-medium flex items-center space-x-1">
-                                                                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                                                                            <span>Online</span>
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -1187,92 +1213,35 @@ const POSCounter = () => {
                                                     </div>
                                                     <button
                                                         onClick={resetCustomerSelection}
-                                                        className="text-red-500 hover:text-red-700 hover:bg-red-100 p-2 rounded-lg transition-colors"
+                                                        className="text-red-500 hover:text-red-700 hover:bg-red-100 p-2 rounded-lg"
                                                     >
-                                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                                            <path d="M6 18L18 6M6 6l12 12"/>
-                                                        </svg>
+                                                        ❌
                                                     </button>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="relative">
-                                                <div className="relative">
-                                                    <input
-                                                        type="text"
-                                                        value={customerSearchQuery}
-                                                        onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                                                        className="w-full px-4 py-3 pl-10 pr-10 border-2 border-blue-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors"
-                                                        placeholder="Ketik nama, phone, atau email..."
-                                                    />
-                                                    <svg className="absolute left-3 top-3.5 w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                                    </svg>
-                                                    {isSearching && (
-                                                        <div className="absolute right-3 top-3.5">
-                                                            <div className="w-5 h-5 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={customerSearchQuery}
+                                                    onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                                                    className="w-full px-4 py-3 pl-10 border-2 border-blue-200 rounded-lg focus:border-primary-500 focus:ring-0"
+                                                    placeholder="Ketik nama, phone, atau email..."
+                                                />
+                                                <span className="absolute left-3 top-3.5 text-blue-400">🔍</span>
+                                                {isSearching && (
+                                                    <span className="absolute right-3 top-3.5 text-primary-600">⏳</span>
+                                                )}
                                                 
                                                 {/* Search Results */}
                                                 {searchResults.length > 0 && (
-                                                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-blue-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
-                                                        {searchResults.map((customer) => (
-                                                            <button
-                                                                key={customer.id}
-                                                                onClick={() => handleSelectExistingCustomer(customer)}
-                                                                className="w-full p-3 sm:p-4 text-left hover:bg-blue-50 border-b border-blue-100 last:border-b-0 first:rounded-t-xl last:rounded-b-xl transition-colors"
-                                                            >
-                                                                <div className="flex justify-between items-start">
-                                                                    <div className="flex space-x-2 sm:space-x-3 flex-1 min-w-0">
-                                                                        {customer.avatar ? (
-                                                                            <img 
-                                                                                src={customer.avatar} 
-                                                                                alt={customer.name}
-                                                                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-gray-200 flex-shrink-0"
-                                                                            />
-                                                                        ) : (
-                                                                            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0">
-                                                                                {customer.name.charAt(0).toUpperCase()}
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <div className="flex items-center space-x-1 sm:space-x-2 mb-1">
-                                                                                <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">{customer.name}</p>
-                                                                                {customer.isOnline && (
-                                                                                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0" title="Online sekarang"></span>
-                                                                                )}
-                                                                            </div>
-                                                                            <p className="text-xs sm:text-sm text-gray-600 truncate">{customer.phone}</p>
-                                                                            <p className="text-xs sm:text-sm text-gray-500 truncate">{customer.email}</p>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex flex-col items-end space-y-1 ml-2 flex-shrink-0">
-                                                                        {customer.order_count >= 10 && (
-                                                                            <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
-                                                                                VIP
-                                                                            </span>
-                                                                        )}
-                                                                        {customer.order_count > 0 && (
-                                                                            <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                                                                                {customer.order_count} orders
-                                                                            </span>
-                                                                        )}
-                                                                        {customer.isOnline && (
-                                                                            <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                                                                                Online
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </button>
-                                                        ))}
+                                                    <div className="absolute z-10 w-full mt-2 bg-white border border-blue-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                                        {CustomerSearchResults}
                                                     </div>
                                                 )}
                                                 
                                                 {customerSearchQuery.trim() && !isSearching && searchResults.length === 0 && (
-                                                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-orange-200 rounded-xl shadow-lg p-4">
+                                                    <div className="absolute z-10 w-full mt-2 bg-white border border-orange-200 rounded-lg shadow-md p-4">
                                                         <div className="text-center">
                                                             <p className="text-gray-600 text-sm font-medium">Customer tidak ditemukan</p>
                                                             <p className="text-gray-400 text-xs mt-1">
@@ -1285,51 +1254,36 @@ const POSCounter = () => {
                                         )}
                                     </div>
                                 )}
+                                
                                 {/* Customer Info Form */}
                                 {(customerType === 'guest' || !selectedCustomer) && (
-                                    <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+                                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                                         <div className="space-y-4">
                                             <div>
-                                                <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center space-x-2">
-                                                    <span>Nama Pelanggan {customerType === 'guest' && '*'}</span>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    👤 Nama Pelanggan {customerType === 'guest' && '*'}
                                                 </label>
                                                 <input
                                                     type="text"
                                                     value={customerInfo.customer_name}
                                                     onChange={(e) => setCustomerInfo({ ...customerInfo, customer_name: e.target.value })}
-                                                    className="w-full px-4 py-3 border-2 border-indigo-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors disabled:bg-gray-100 disabled:text-gray-600"
+                                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 disabled:bg-gray-100"
                                                     placeholder="Masukkan nama pelanggan..."
                                                     disabled={customerType === 'existing' && selectedCustomer}
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-semibold text-indigo-800 mb-2 flex items-center space-x-2">
-                                                    <span>Nomor HP {customerType === 'guest' ? '(Opsional)' : '*'}</span>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    📱 Nomor HP {customerType === 'guest' ? '(Opsional)' : '*'}
                                                 </label>
                                                 <input
                                                     type="text"
                                                     value={customerInfo.customer_phone}
                                                     onChange={(e) => setCustomerInfo({ ...customerInfo, customer_phone: e.target.value })}
-                                                    className="w-full px-4 py-3 border-2 border-indigo-200 rounded-xl focus:border-primary-500 focus:ring-0 transition-colors disabled:bg-gray-100 disabled:text-gray-600"
+                                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-primary-500 focus:ring-0 disabled:bg-gray-100"
                                                     placeholder="08xxxxxxxxxx"
                                                     disabled={customerType === 'existing' && selectedCustomer}
                                                 />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Customer Type Indicator */}
-                                {selectedCustomer && (
-                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                                            </div>
-                                            <div>
-                                                <span className="text-blue-800 font-semibold text-lg">Customer Terdaftar</span>
-                                                <p className="text-sm text-blue-600 mt-1">
-                                                    Order akan terhubung dengan akun customer dan mendapat loyalty points
-                                                </p>
                                             </div>
                                         </div>
                                     </div>
@@ -1352,7 +1306,7 @@ const POSCounter = () => {
                                                     : 'border-amber-200 hover:border-amber-300 text-amber-700'
                                             }`}
                                         >
-                                            <span className="text-lg">🏪</span>
+                                            <span className="text-lg"></span>
                                             <div className="text-center">
                                                 <div className="font-semibold text-xs">Dine In</div>
                                                 <div className="text-xs opacity-75">Makan Di Tempat</div>
@@ -1369,7 +1323,7 @@ const POSCounter = () => {
                                                     : 'border-amber-200 hover:border-amber-300 text-amber-700'
                                             }`}
                                         >
-                                            <span className="text-lg">🥡</span>
+                                            <span className="text-lg"></span>
                                             <div className="text-center">
                                                 <div className="font-semibold text-xs">TakeAway</div>
                                                 <div className="text-xs opacity-75">Bawa Pulang</div>
@@ -1483,28 +1437,25 @@ const POSCounter = () => {
                             </div>
                         </div>
 
-                        {/* Footer - Always Visible */}
-                        <div className="flex-shrink-0 bg-gray-50 border-t px-6 py-4 rounded-b-2xl">
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
-                                {/* Total */}
+                        {/* Footer */}
+                        <div className="bg-gray-50 border-t px-6 py-4 rounded-b-xl">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-3 sm:space-y-0">
                                 <div className="text-center sm:text-left">
                                     <p className="text-sm text-gray-600 mb-1">Total Bayar:</p>
                                     <p className="text-2xl font-bold text-primary-600">{formatRupiah(cartTotal)}</p>
                                 </div>
-
-                                {/* Action Buttons */}
                                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
                                     <button
                                         onClick={() => setShowPaymentModal(false)}
-                                        className="w-full sm:w-auto px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                                        className="w-full sm:w-auto px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50"
                                     >
                                         Batal
                                     </button>
                                     <button
                                         onClick={handleSubmitOrder}
-                                        className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-bold hover:from-primary-700 hover:to-primary-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                                        className="w-full sm:w-auto px-6 py-3 bg-primary-600 text-white rounded-lg font-bold hover:bg-primary-700"
                                     >
-                                        <span>Proses Order</span>
+                                        Proses Order
                                     </button>
                                 </div>
                             </div>

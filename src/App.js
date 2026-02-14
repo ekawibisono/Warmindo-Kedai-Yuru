@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider } from './contexts/AuthContext';
@@ -6,6 +6,7 @@ import { CustomerAuthProvider } from './contexts/CustomerAuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import Toast from './components/common/Toast';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import { publicAPI } from './services/api';
 
 // Pages
 import Login from './pages/Login';
@@ -31,6 +32,49 @@ import PopupBanners from './pages/PopupBanners';
 import POSCounter from './pages/POSCounter';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import MaintenancePage from './pages/MaintenancePage';
+
+// Component to check maintenance mode for customer routes
+const MaintenanceCheck = ({ children }) => {
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkMaintenanceMode = async () => {
+      try {
+        const response = await publicAPI.getStoreSettings();
+        setIsMaintenanceMode(response.data.settings.maintenance_mode === true || response.data.settings.maintenance_mode === 'true');
+        setMaintenanceMessage(response.data.settings.maintenance_message || '');
+      } catch (error) {
+        console.error('Failed to check maintenance mode:', error);
+        // On error, allow access (fail open)
+        setIsMaintenanceMode(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkMaintenanceMode();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isMaintenanceMode) {
+    return <MaintenancePage message={maintenanceMessage} />;
+  }
+
+  return children;
+};
 
 function App() {
   return (
@@ -42,8 +86,8 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/menu" element={<CustomerMenu />} />
-          <Route path="/track" element={<OrderTracking />} />
+          <Route path="/menu" element={<MaintenanceCheck><CustomerMenu /></MaintenanceCheck>} />
+          <Route path="/track" element={<MaintenanceCheck><OrderTracking /></MaintenanceCheck>} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           

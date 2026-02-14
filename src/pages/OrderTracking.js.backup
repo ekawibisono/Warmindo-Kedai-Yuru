@@ -14,7 +14,6 @@ const OrderTracking = () => {
   // Token expiry states
   const [tokenExpired, setTokenExpired] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(null);
-
   // Function to calculate time remaining - 24 jam sejak order dibuat
   const calculateTimeRemaining = useCallback((orderData) => {
     if (!orderData.created_at) {
@@ -31,6 +30,414 @@ const OrderTracking = () => {
     return timeLeft > 0 ? Math.ceil(timeLeft / 1000) : 0;
   }, []);
 
+  // Stop polling function - definisi harus sebelum cleanupAll
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearTimeout(pollingIntervalRef.current); // Use clearTimeout for setTimeout
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      // Properly close with code to prevent auto-reconnect
+      wsRef.current.close(1000, 'Manual disconnect');
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setWsConnected(false);
+    setConnectionAttempts(0);
+  }, []);
+
+  // Enhanced cleanup function
+  const cleanupAll = useCallback(() => {
+    disconnectWebSocket();
+    stopPolling();
+    setConnectionAttempts(0);
+    if (idleTimeoutRef.current) {
+      clearTimeout(idleTimeoutRef.current);
+      idleTimeoutRef.current = null;
+    }
+  }, [disconnectWebSocket, stopPolling]);
+
+  // Comprehensive cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupAll();
+    };
+  }, [cleanupAll]);
+
+  // Ultra-smart polling with progressive intervals and deep idle awareness
+  const getPollingInterval = useCallback((orderStatus) => {
+    // Progressive idle multipliers to dramatically reduce polling
+    let idleMultiplier = 1;
+    if (isDeepIdle) {
+      idleMultiplier = 8; // 8x longer when deeply idle (20+ min inactive)
+    } else if (isIdle) {
+      idleMultiplier = 4; // 4x longer when idle (10+ min inactive)
+    }
+    
+    // Progressive backoff when no changes detected
+    const noChangeMultiplier = Math.min(1 + (noChangeCount * 0.5), 3); // Up to 3x longer
+    
+    let baseInterval;
+    switch(orderStatus) {
+      case 'pending':
+      case 'confirmed':
+        baseInterval = 150000; // 2.5 minutes - payment verification (increased)
+        break;
+      case 'preparing':
+        baseInterval = 180000; // 3 minutes - cooking stage (increased)
+        break;
+      case 'ready':
+      case 'delivering':
+        baseInterval = 90000; // 1.5 minutes - critical delivery stage (slightly increased)
+        break;
+      case 'waiting_pickup':
+        baseInterval = 240000; // 4 minutes - waiting for pickup (increased)
+        break;
+      case 'completed':
+      case 'delivered':
+      case 'picked_up':
+        baseInterval = 600000; // 10 minutes - completed orders rarely change
+        break;
+      default:
+        baseInterval = 420000; // 7 minutes - default (increased)
+    }
+    
+    const finalInterval = baseInterval * idleMultiplier * noChangeMultiplier;
+    return Math.max(finalInterval, MIN_API_INTERVAL);
+  }, [isIdle, isDeepIdle, noChangeCount]);
+
+  // Rate limiting function to prevent 429 errors
+  const canMakeApiCall = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastCall = now - lastApiCall;
+    
+    // Enforce minimum interval between API calls
+    if (timeSinceLastCall < MIN_API_INTERVAL) {
+      console.log(`⚠️ Rate limit: ${(MIN_API_INTERVAL - timeSinceLastCall)/1000}s remaining`);
+      return false;
+    }
+    
+    // Check 15-minute window limit (reset every 15 minutes)
+    const windowStart = Math.floor(now / (15 * 60 * 1000)) * (15 * 60 * 1000);
+    const currentWindowStart = Math.floor(lastApiCall / (15 * 60 * 1000)) * (15 * 60 * 1000);
+    
+    if (windowStart !== currentWindowStart) {
+      // New window, reset counter
+      setRequestsInWindow(0);
+    }
+    
+    if (requestsInWindow >= MAX_REQUESTS_PER_WINDOW) {
+      console.log(`⚠️ Rate limit: Max requests (${MAX_REQUESTS_PER_WINDOW}) reached in 15-minute window`);
+      return false;
+    }
+    
+    return true;
+  }, [lastApiCall, requestsInWindow]);
+  
+  // Track API calls and order changes for rate limiting
+  const recordApiCall = useCallback(() => {
+    setLastApiCall(Date.now());
+    setRequestsInWindow(prev => prev + 1);
+  }, []);
+  
+  // Generate simple hash for order comparison
+  const generateOrderHash = useCallback((orderData) => {
+    if (!orderData) return '';
+    const key = `${orderData.status}_${orderData.payment?.status}_${orderData.updated_at || orderData.created_at}`;
+    return key;
+  }, []);
+  
+  // Check if order data actually changed
+  const hasOrderChanged = useCallback((newOrderData) => {
+    const newHash = generateOrderHash(newOrderData);
+    const changed = newHash !== lastOrderHash;
+    if (changed) {
+      setLastOrderHash(newHash);
+      setNoChangeCount(0); // Reset counter on change
+    } else {
+      setNoChangeCount(prev => prev + 1); // Increment counter on no change
+    }
+    return changed;
+  }, [lastOrderHash, generateOrderHash]);
+
+  // Improved polling dengan better error handling and proper cleanup
+  const startPolling = useCallback((orderNumber, trackingToken) => {
+    // Stop any existing polling to prevent multiple instances
+    if (pollingIntervalRef.current) {
+      console.log('⚠️ Stopping existing polling before starting new instance');
+      clearTimeout(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    const pollData = async () => {
+      // Rate limiting check
+      if (!canMakeApiCall()) {
+        // Schedule next poll with minimum interval
+        pollingIntervalRef.current = setTimeout(() => {
+          pollingIntervalRef.current = null;
+          pollData();
+        }, MIN_API_INTERVAL);
+        return;
+      }
+      
+      // Check if token expired (24 hours from order creation)
+      if (order && timeRemaining === 0) {
+        setTokenExpired(true);
+        setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
+        stopPolling();
+        disconnectWebSocket();
+        return;
+      }
+
+      if (!tokenExpired) {
+        try {
+          // Record API call for rate limiting
+          recordApiCall();
+          
+          const response = await publicAPI.getOrder(orderNumber, trackingToken);
+          const orderData = response.data;
+
+          let currentOrder = null;
+          if (orderData.order) {
+            currentOrder = {
+              ...orderData.order,
+              payment: orderData.last_payment
+            };
+          } else {
+            currentOrder = orderData;
+          }
+
+          // Reset connection attempts on successful poll
+          setConnectionAttempts(0);
+          setError('');
+
+          // Only update if order data actually changed (comprehensive check)
+          const orderChanged = hasOrderChanged(currentOrder);
+          if (orderChanged || !order) {
+            setOrder(currentOrder);
+            setLastUpdated(new Date());
+            updateActivity(); // Mark as activity
+            console.log('📊 Order updated:', orderChanged ? 'Data changed' : 'First load');
+          } else {
+            console.log(`⏭️ No changes detected (${noChangeCount} consecutive unchanged polls)`);
+          }
+
+          // Check if completed and stop polling
+          const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+          if (completedStatuses.includes(currentOrder.status)) {
+            stopPolling();
+            disconnectWebSocket();
+            return;
+          }
+
+          // Schedule next poll with adaptive interval
+          const newInterval = getPollingInterval(currentOrder.status);
+          
+          pollingIntervalRef.current = setTimeout(() => {
+            pollingIntervalRef.current = null;
+            pollData();
+          }, newInterval);
+
+        } catch (error) {
+          console.warn('Polling error:', error.response?.status || error.code || error.message);
+          
+          // Distinguish between different types of errors
+          if (error.response?.status === 404) {
+            setError('Pesanan tidak ditemukan. Periksa kembali nomor pesanan dan token Anda.');
+            stopPolling();
+            return;
+          } else if (error.response?.status === 410) {
+            setTokenExpired(true);
+            setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
+            stopPolling();
+            return;
+          } else if (error.response?.status === 400) {
+            setError('Format nomor pesanan atau token tidak valid.');
+            stopPolling();
+            return;
+          } else if (error.response?.status >= 500) {
+            console.warn('Server error, will retry polling...');
+          } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+            console.warn('Network error, will retry polling...');
+          } else {
+            console.warn('Unknown polling error, will retry...');
+          }
+          
+          // For retriable errors, retry with exponential backoff - ULTRA-conservative delays  
+          const retryDelay = Math.min(180000 * Math.pow(2, connectionAttempts), 1800000); // Start at 3 min, max 30 minutes
+          setConnectionAttempts(prev => prev + 1);
+          
+          if (connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+            console.log(`⏳ Polling retry ${connectionAttempts + 1}/${MAX_RECONNECT_ATTEMPTS} in ${retryDelay/1000}s`);
+            pollingIntervalRef.current = setTimeout(() => {
+              pollingIntervalRef.current = null;
+              pollData();
+            }, retryDelay);
+          } else {
+            console.warn('❌ Max polling attempts reached, stopping polling to prevent 429 errors');
+            stopPolling();
+          }
+        }
+      } else {
+        stopPolling();
+      }
+    };
+
+    // Start immediately
+    pollData();
+  }, [tokenExpired, disconnectWebSocket, stopPolling, order, timeRemaining, connectionAttempts, updateActivity, getPollingInterval, canMakeApiCall, recordApiCall]);
+
+  // Enhanced WebSocket connection dengan idle awareness
+  const connectToWebSocket = useCallback((orderNumber, trackingToken) => {
+    // Skip if WebSocket is disabled due to previous failures or rate limited
+    if (wsDisabled || !orderNumber || !trackingToken || wsRef.current?.readyState === WebSocket.OPEN || !canMakeApiCall()) {
+      console.log('WebSocket disabled, already connected, or rate limited - using polling instead');
+      return;
+    }
+
+    // Stop polling before attempting WebSocket
+    stopPolling();
+
+    try {
+      // Clean up existing connection
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      
+      // Use localhost for development, production will use proper domain
+      const isProduction = process.env.NODE_ENV === 'production';
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = isProduction 
+        ? window.location.host 
+        : 'localhost:3001'; // Use localhost instead of IP
+      
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/order-tracking?order=${orderNumber}&token=${trackingToken}`;
+      console.log('Attempting WebSocket connection to:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      // Set timeout for connection attempt
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          console.log('WebSocket connection timeout, falling back to polling');
+          ws.close();
+          setWsDisabled(true); // Disable WebSocket for this session
+          startPolling(orderNumber, trackingToken);
+        }
+      }, 5000); // 5 second timeout
+
+      ws.onopen = () => {
+        clearTimeout(connectionTimeout);
+        console.log('WebSocket connected successfully');
+        setWsConnected(true);
+        setConnectionAttempts(0);
+        updateActivity(); // Mark connection as activity
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+          
+          if (data.type === 'order_update' && data.order) {
+            // Real-time update from admin panel!
+            const updatedOrder = {
+              ...data.order,
+              payment: data.order.payment || order?.payment
+            };
+            
+            setOrder(updatedOrder);
+            setLastUpdated(new Date());
+            updateActivity(); // Mark as activity
+            
+            // Update time remaining
+            const timeLeft = calculateTimeRemaining(updatedOrder);
+            setTimeRemaining(timeLeft);
+            
+            // Check if token expired
+            if (timeLeft === 0) {
+              setTokenExpired(true);
+              setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
+              disconnectWebSocket();
+              return;
+            }
+            
+            // Stop connections if order completed
+            const finalStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+            if (finalStatuses.includes(updatedOrder.status)) {
+              disconnectWebSocket();
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to parse WebSocket message:', err);
+        }
+      };
+
+      ws.onclose = (event) => {
+        clearTimeout(connectionTimeout);
+        console.log('WebSocket closed:', event.code, event.reason);
+        setWsConnected(false);
+        wsRef.current = null;
+        
+        // Only attempt reconnection under specific conditions
+        const shouldReconnect = !tokenExpired && 
+                               connectionAttempts < MAX_RECONNECT_ATTEMPTS &&
+                               event.code !== 1000 && // Not manual close
+                               !wsDisabled && // Not disabled
+                               (Date.now() - lastActivity) < (IDLE_TIMEOUT * 2);
+        
+        if (shouldReconnect) {
+          const delay = Math.min(10000 * (connectionAttempts + 1), 30000);
+          console.log(`WebSocket reconnection attempt ${connectionAttempts + 1}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setConnectionAttempts(prev => prev + 1);
+            connectToWebSocket(orderNumber, trackingToken);
+          }, delay);
+        } else {
+          console.log('WebSocket reconnect conditions not met, starting polling');
+          setWsDisabled(true); // Disable WebSocket for this session
+          // Fallback to polling with delay to prevent immediate API call
+          if (order && !['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order.status)) {
+            setTimeout(() => {
+              if (canMakeApiCall()) {
+                startPolling(orderNumber, trackingToken);
+              }
+            }, MIN_API_INTERVAL);
+          }
+        }
+      };
+
+      ws.onerror = (error) => {
+        clearTimeout(connectionTimeout);
+        console.warn('WebSocket error - disabling WebSocket for this session');
+        setWsConnected(false);
+        setWsDisabled(true); // Disable WebSocket permanently for this session
+      };
+      
+    } catch (err) {
+      console.warn('Failed to create WebSocket connection:', err.message);
+      setWsConnected(false);
+      setWsDisabled(true); // Disable WebSocket for this session
+      // Immediate fallback to polling with delay
+      if (order && !['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order.status)) {
+        console.log('WebSocket creation failed, starting polling with delay');
+        setTimeout(() => {
+          if (canMakeApiCall()) {
+            startPolling(orderNumber, trackingToken);
+          }
+        }, MIN_API_INTERVAL);
+      }
+    }
+  }, [calculateTimeRemaining, disconnectWebSocket, stopPolling, connectionAttempts, order, tokenExpired, startPolling, lastActivity, updateActivity, wsDisabled, canMakeApiCall]);
+
   // Format remaining time to display
   const formatTimeRemaining = (seconds) => {
     if (seconds <= 0) return '0:00:00';
@@ -45,7 +452,44 @@ const OrderTracking = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Countdown timer for token expiry
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      disconnectWebSocket();
+      stopPolling();
+    };
+  }, [disconnectWebSocket, stopPolling]);
+
+  // Start smart real-time connection after order is loaded
+  useEffect(() => {
+    if (order && orderNo && token && !tokenExpired) {
+      const finalStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+      
+      if (!finalStatuses.includes(order.status)) {
+        // Always start with polling first, then try WebSocket if available with delay
+        setTimeout(() => {
+          if (canMakeApiCall()) {
+            startPolling(orderNo, token);
+          }
+        }, 1000); // 1 second delay to prevent immediate API call
+        
+        // Only try WebSocket if not disabled and after a longer delay
+        if (!wsDisabled) {
+          const wsTimeout = setTimeout(() => {
+            // Check if polling is working before attempting WebSocket
+            if (!wsConnected && pollingIntervalRef.current && canMakeApiCall()) {
+              console.log('Attempting WebSocket upgrade from polling');
+              connectToWebSocket(orderNo, token);
+            }
+          }, 5000); // 5 second delay
+          
+          return () => clearTimeout(wsTimeout);
+        }
+      }
+    }
+  }, [order, orderNo, token, tokenExpired, connectToWebSocket, startPolling, wsConnected, wsDisabled, canMakeApiCall]);
+
+  // Countdown timer - FIXED: Remove API calls to prevent 429 errors
   useEffect(() => {
     if (!order || tokenExpired || timeRemaining === null || timeRemaining <= 0) {
       return;
@@ -54,9 +498,12 @@ const OrderTracking = () => {
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
+          // Countdown selesai - mark as expired but don't make API calls
           console.log('⏰ Token countdown expired');
           setTokenExpired(true);
           setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
+          // Stop all connections
+          cleanupAll();
           return 0;
         }
         return prev - 1;
@@ -64,9 +511,8 @@ const OrderTracking = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [order, tokenExpired, timeRemaining]);
+  }, [order, tokenExpired, timeRemaining, cleanupAll]);
 
-  // Initial fetch when URL params are present
   useEffect(() => {
     const urlOrderNo = searchParams.get('order');
     const urlToken = searchParams.get('token');
@@ -75,10 +521,11 @@ const OrderTracking = () => {
       setOrderNo(urlOrderNo);
       setToken(urlToken);
       
-      // Initial fetch
+      // Initial fetch without dependencies to avoid circular reference
       const initialFetch = async () => {
         setLoading(true);
         try {
+          recordApiCall(); // Track API call
           console.log('Fetching order:', urlOrderNo, 'with token:', urlToken?.substring(0, 4) + '***');
           const response = await publicAPI.getOrder(urlOrderNo, urlToken);
           console.log('API Response:', response);
@@ -96,21 +543,32 @@ const OrderTracking = () => {
             currentOrder = orderData;
           }
 
-          // Calculate time remaining
-          const timeLeft = calculateTimeRemaining(currentOrder);
-          setTimeRemaining(timeLeft);
+// Calculate time remaining
+        const timeLeft = calculateTimeRemaining(currentOrder);
+        setTimeRemaining(timeLeft);
+        
+        // Check if token expired
+        if (timeLeft === 0) {
+          setTokenExpired(true);
+          setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
+          stopPolling();
+          disconnectWebSocket();
+          return;
+        }
+        
+        // Initialize order hash for change detection
+        const initialHash = generateOrderHash(currentOrder);
+        setLastOrderHash(initialHash);
+        
+        setOrder(currentOrder);
+        setLastUpdated(new Date());
+        setError('');
           
-          // Check if token expired
-          if (timeLeft === 0) {
-            setTokenExpired(true);
-            setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
-            return;
+          // Start real-time updates for active orders
+          const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+          if (!completedStatuses.includes(currentOrder.status)) {
+            // Will be handled by the useEffect above
           }
-          
-          setOrder(currentOrder);
-          setLastUpdated(new Date());
-          setError('');
-          
         } catch (error) {
           console.error('Initial fetch error:', error);
           console.error('Error response:', error.response);
@@ -124,8 +582,10 @@ const OrderTracking = () => {
             setError('Format nomor pesanan atau token tidak valid. Silakan periksa kembali.');
           } else if (error.response?.status >= 500) {
             setError('Server sedang mengalami gangguan. Silakan coba lagi dalam beberapa saat.');
+          } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+            setError('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
           } else {
-            setError('Terjadi kesalahan saat memuat pesanan. Silakan coba lagi.');
+            setError(`Terjadi kesalahan: ${error.response?.data?.message || error.message || 'Gagal memuat pesanan. Silakan coba lagi.'}`);
           }
         } finally {
           setLoading(false);
@@ -134,19 +594,23 @@ const OrderTracking = () => {
       
       initialFetch();
     }
-  }, [searchParams, calculateTimeRemaining]);
+  }, [searchParams, calculateTimeRemaining, stopPolling, disconnectWebSocket]);
 
-  // Handle manual search
   const handleSearch = async (e) => {
     e.preventDefault();
     setTokenExpired(false);
     setTimeRemaining(null);
     setError('');
     
+    // Clean up existing connections
+    cleanupAll();
+    
     if (orderNo && token) {
       setLoading(true);
+      updateActivity(); // Mark search as activity
       
       try {
+        recordApiCall(); // Track API call  
         console.log('Manual search order:', orderNo, 'with token:', token?.substring(0, 4) + '***');
         const response = await publicAPI.getOrder(orderNo, token);
         console.log('Search API Response:', response);
@@ -178,6 +642,18 @@ const OrderTracking = () => {
           return;
         }
         
+        // Start real-time tracking if not completed - with delay to prevent rapid API calls
+        const completedStatuses = ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'];
+        if (!completedStatuses.includes(currentOrder.status)) {
+          // Add delay to prevent immediate polling after manual search
+          setTimeout(() => {
+            if (!pollingIntervalRef.current && !tokenExpired && canMakeApiCall()) {
+              console.log('🔄 Starting polling after manual search');
+              startPolling(orderNo, token);
+            }
+          }, 3000); // 3 second delay - increased from 2 seconds
+        }
+        
       } catch (error) {
         console.error('Search order error:', error);
         console.error('Error response:', error.response);
@@ -191,8 +667,10 @@ const OrderTracking = () => {
           setError('Format nomor pesanan atau token tidak valid. Silakan periksa kembali.');
         } else if (error.response?.status >= 500) {
           setError('Server sedang mengalami gangguan. Silakan coba lagi dalam beberapa saat.');
+        } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+          setError('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
         } else {
-          setError('Terjadi kesalahan saat memuat pesanan. Silakan coba lagi.');
+          setError(`Terjadi kesalahan: ${error.response?.data?.message || error.message || 'Gagal memuat pesanan. Silakan coba lagi.'}`);
         }
       } finally {
         setLoading(false);
@@ -200,11 +678,11 @@ const OrderTracking = () => {
     }
   };
 
-  // Handle manual refresh
   const handleManualRefresh = async () => {
-    if (!tokenExpired && orderNo && token) {
+    if (!tokenExpired && orderNo && token && canMakeApiCall()) {
       setLoading(true);
       try {
+        recordApiCall(); // Track API call
         console.log('Manual refresh for order:', orderNo);
         const response = await publicAPI.getOrder(orderNo, token);
         console.log('Refresh API Response:', response);
@@ -248,8 +726,10 @@ const OrderTracking = () => {
           setError('Format nomor pesanan atau token tidak valid. Silakan periksa kembali.');
         } else if (error.response?.status >= 500) {
           setError('Server sedang mengalami gangguan. Silakan coba lagi dalam beberapa saat.');
+        } else if (error.code === 'NETWORK_ERROR' || !error.response) {
+          setError('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
         } else {
-          setError('Terjadi kesalahan saat memuat pesanan. Silakan coba lagi.');
+          setError(`Gagal memperbarui pesanan: ${error.response?.data?.message || error.message || 'Silakan coba lagi.'}`);
         }
       } finally {
         setLoading(false);
@@ -641,6 +1121,21 @@ const OrderTracking = () => {
     );
   };
 
+  // Calculate connection status for UI
+  const connectionStatus = React.useMemo(() => {
+    if (isDeepIdle && wsConnected) {
+      return 'deep-idle';
+    } else if (isIdle && wsConnected) {
+      return 'idle';
+    } else if (!wsConnected && connectionAttempts > 0) {
+      return connectionAttempts >= MAX_RECONNECT_ATTEMPTS ? 'disconnected' : 'connecting';
+    } else if (wsConnected) {
+      return 'connected';
+    } else {
+      return null;
+    }
+  }, [isIdle, isDeepIdle, wsConnected, connectionAttempts, MAX_RECONNECT_ATTEMPTS]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -653,6 +1148,29 @@ const OrderTracking = () => {
               </svg>
             </a>
             <h1 className="text-2xl font-bold text-gray-900">Lacak Pesanan</h1>
+            {/* Connection Status Indicator */}
+            <div className="ml-auto flex items-center space-x-2">
+              <div className={`flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                connectionStatus === 'connected' ? 'bg-green-100 text-green-800' :
+                connectionStatus === 'connecting' ? 'bg-yellow-100 text-yellow-800' :
+                connectionStatus === 'deep-idle' ? 'bg-purple-100 text-purple-800' :
+                connectionStatus === 'idle' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                <div className={`w-2 h-2 rounded-full mr-2 ${
+                  connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' :
+                  connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                  connectionStatus === 'deep-idle' ? 'bg-purple-500' :
+                  connectionStatus === 'idle' ? 'bg-blue-500' :
+                  'bg-gray-500'
+                }`}></div>
+                {connectionStatus === 'connected' && '🟢 Terhubung'}
+                {connectionStatus === 'connecting' && '🔄 Menghubung...'}
+                {connectionStatus === 'deep-idle' && '🟣 Hemat Energi'}
+                {connectionStatus === 'idle' && '⏱️ Istirahat'}
+                {!connectionStatus && '⚪ Tidak Ada'}
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -718,6 +1236,60 @@ const OrderTracking = () => {
         {/* Order Details */}
         {order && !tokenExpired && (
           <div className="space-y-6">
+            {/* Activity Status Indicator */}
+            {connectionStatus && (
+              <div className={`border-l-4 p-4 rounded ${
+                connectionStatus === 'deep-idle' ? 'bg-purple-50 border-purple-400' : 
+                connectionStatus === 'idle' ? 'bg-blue-50 border-blue-400' : 
+                connectionStatus === 'connected' ? 'bg-green-50 border-green-400' :
+                'bg-yellow-50 border-yellow-400'
+              }`}>
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    {connectionStatus === 'deep-idle' && (
+                      <svg className="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                    )}
+                    {connectionStatus === 'idle' && (
+                      <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    )}
+                    {connectionStatus === 'connected' && (
+                      <svg className="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    )}
+                    {connectionStatus === 'connecting' && (
+                      <svg className="h-5 w-5 text-yellow-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className={`text-sm ${
+                      connectionStatus === 'deep-idle' ? 'text-purple-700' :
+                      connectionStatus === 'idle' ? 'text-blue-700' : 
+                      connectionStatus === 'connected' ? 'text-green-700' :
+                      'text-yellow-700'
+                    }`}>
+                      <span className="font-semibold">
+                        {connectionStatus === 'deep-idle' && '🟣 Mode Hemat Energi Ultra'}
+                        {connectionStatus === 'idle' && '⏱️ Mode Istirahat Aktif'}
+                        {connectionStatus === 'connected' && '🟢 Koneksi Real-time Aktif'}
+                        {connectionStatus === 'connecting' && '🔄 Menghubungkan...'}
+                      </span>{' '}
+                      {connectionStatus === 'deep-idle' && '- Polling sangat jarang (20+ menit tidak ada aktivitas). Interval polling 8x lebih panjang untuk menghemat bandwidth.'}
+                      {connectionStatus === 'idle' && '- Pemantauan dalam interval lebih jarang untuk menghemat sumber daya. Gerakkan mouse atau ketik untuk aktivasi normal.'}
+                      {connectionStatus === 'connected' && '- Pembaruan status pesanan secara otomatis setiap 5 detik'}
+                      {connectionStatus === 'connecting' && '- Mencoba menghubungkan ulang ke server...'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Token Expiry Warning - Show for all orders */}
             {timeRemaining !== null && timeRemaining > 0 && (
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
@@ -731,6 +1303,7 @@ const OrderTracking = () => {
                     <p className="text-sm text-yellow-700">
                       <span className="font-semibold">Token akan kedaluwarsa dalam:</span>{' '}
                       <span className="font-bold text-yellow-900">{formatTimeRemaining(timeRemaining)}</span>
+                      {' '}
                     </p>
                   </div>
                 </div>
@@ -752,16 +1325,54 @@ const OrderTracking = () => {
               </div>
             )}
 
-            {/* Refresh Status Bar */}
+            {/* Auto-Refresh Status Bar */}
             <div className="bg-white rounded-xl shadow-md p-4">
               <div className="flex items-center justify-between">
-                {/* Status indicator */}
+                {/* Live indicator */}
                 <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-400"></span>
-                  </span>
-                  <span className="text-sm text-gray-600 font-medium">Manual Refresh</span>
-                  <span className="text-xs text-gray-500">• Klik tombol refresh untuk update status</span>
+                  {tokenExpired ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                      </span>
+                      <span className="text-sm text-orange-600 font-medium">Token Expired</span>
+                      <span className="text-xs text-gray-500">• Tracking tidak tersedia (&gt;24 jam)</span>
+                    </>
+                  ) : order && (order.status === 'completed' || order.status === 'delivered' || order.status === 'picked_up') ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                      <span className="text-sm text-green-600 font-medium">Selesai</span>
+                      <span className="text-xs text-gray-500">• Pesanan telah selesai</span>
+                    </>
+                  ) : wsConnected ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                      <span className="text-sm text-green-600 font-medium">🚀 Real-time</span>
+                      <span className="text-xs text-gray-500">• Update otomatis dari admin</span>
+                    </>
+                  ) : pollingIntervalRef.current ? (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                      </span>
+                      <span className="text-sm text-blue-600 font-medium">🧠 Smart polling</span>
+                      <span className="text-xs text-gray-500">• Update adaptif berdasarkan status</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="relative flex h-2 w-2">
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-gray-400"></span>
+                      </span>
+                      <span className="text-sm text-gray-500 font-medium">Manual refresh</span>
+                      <span className="text-xs text-gray-500">• Klik tombol refresh untuk update</span>
+                    </>
+                  )}
                 </div>
 
                 {/* Right side: last updated & refresh button */}
@@ -773,8 +1384,8 @@ const OrderTracking = () => {
                   )}
                   <button
                     onClick={handleManualRefresh}
-                    disabled={loading || tokenExpired || ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order?.status)}
-                    className={'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ' + ((loading || tokenExpired || ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order?.status)) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-primary-100 text-primary-700 hover:bg-primary-200')}
+                    disabled={loading || tokenExpired || ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order?.status) || !canMakeApiCall()}
+                    className={'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ' + ((loading || tokenExpired || ['completed', 'delivered', 'picked_up', 'canceled', 'cancelled'].includes(order?.status) || !canMakeApiCall()) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-primary-100 text-primary-700 hover:bg-primary-200')}
                   >
                     <svg
                       className={'w-4 h-4 mr-1.5 ' + (loading ? 'animate-spin' : '')}
@@ -789,7 +1400,7 @@ const OrderTracking = () => {
                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                       />
                     </svg>
-                    {loading ? 'Memuat...' : tokenExpired ? 'Token Expired' : ['completed', 'delivered', 'picked_up'].includes(order?.status) ? 'Selesai' : 'Refresh'}
+                    {loading ? 'Memuat...' : tokenExpired ? 'Token Expired' : !canMakeApiCall() ? 'Rate Limited' : ['completed', 'delivered', 'picked_up'].includes(order?.status) ? 'Selesai' : 'Refresh'}
                   </button>
                 </div>
               </div>
@@ -842,12 +1453,40 @@ const OrderTracking = () => {
             {/* Timeline Card */}
             <div className="bg-gradient-to-br from-white to-gray-50 rounded-xl shadow-lg overflow-hidden">
               <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-4">
-                <h3 className="text-xl font-bold text-white flex items-center">
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Status Pesanan
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white flex items-center">
+                    <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Status Pesanan
+                  </h3>
+                  {connectionStatus === 'connecting' && (
+                    <div className="flex items-center gap-2 text-white text-sm" style={{ opacity: 0.8 }}>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Menghubungkan...
+                    </div>
+                  )}
+
+                  {connectionStatus === 'deep-idle' && (
+                    <div className="flex items-center gap-2 text-white text-sm" style={{ opacity: 0.8 }}>
+                      <svg className="w-4 h-4 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                      Mode Hemat Energi
+                    </div>
+                  )}
+                  {connectionStatus === 'idle' && (
+                    <div className="flex items-center gap-2 text-white text-sm" style={{ opacity: 0.8 }}>
+                      <svg className="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Mode Istirahat
+                    </div>
+                  )}
+                </div>
               </div>
               <TimelineSection />
             </div>

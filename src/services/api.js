@@ -184,6 +184,10 @@ export const publicAPI = {
   // Get active popup banner for customers
   getActivePopupBanner: () => api.get('/public/popup-banner/active'),
 
+  // ========== STORE SETTINGS (PUBLIC) ==========
+  // Get public store settings (maintenance mode check)
+  getStoreSettings: () => api.get('/public/settings'),
+
 };
 
 // Staff API (Admin & Kasir)
