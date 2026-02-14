@@ -312,6 +312,9 @@ const CustomerMenu = () => {
   // Get hot deals products
   const hotDealsProducts = menu.products.filter(p => p.is_active && p.is_hot_deal);
 
+  // Find the highest total_sold value across all active products
+  const maxTotalSold = Math.max(...menu.products.filter(p => p.is_active && p.total_sold > 0).map(p => p.total_sold || 0), 0);
+
   // Filter products
   const filteredProducts = menu.products
     .filter(p => {
@@ -413,16 +416,29 @@ const CustomerMenu = () => {
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProducts.map((product) => {
               const isAvailable = isProductAvailable(product);
+              const isTopSeller = product.total_sold > 0 && product.total_sold === maxTotalSold;
               return (
                 <div key={product.id} className={`group relative rounded-2xl shadow-md transition-all duration-300 overflow-hidden border flex flex-col ${
                   isAvailable 
                     ? 'bg-white hover:shadow-xl transform hover:-translate-y-1 border-gray-100' 
                     : 'bg-gray-50 border-gray-200 opacity-75'
-                }`}>
+                }${isTopSeller ? ' ring-2 ring-orange-400 ring-opacity-50' : ''}`}>
+                {/* Top Seller Badge - Membara Effect */}
+                {isTopSeller && isAvailable && (
+                  <div className="absolute top-2 left-2 z-20">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500 rounded-full blur-sm opacity-75 animate-pulse"></div>
+                      <div className="relative bg-gradient-to-r from-orange-500 via-red-500 to-orange-600 text-white px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold shadow-lg">
+                        🔥 Terlaris
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Hot Deal Badge */}
-                {product.is_hot_deal && isAvailable && (
-                  <div className="absolute top-3 left-3 z-10">
-                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg">
+                {product.is_hot_deal && isAvailable && !isTopSeller && (
+                  <div className="absolute top-2 left-2 z-10">
+                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold shadow-lg">
                       🔥 Hot Deal
                     </div>
                   </div>
@@ -430,8 +446,8 @@ const CustomerMenu = () => {
 
                 {/* Sales Badge */}
                 {product.total_sold > 0 && (
-                  <div className="absolute top-3 right-3 z-10">
-                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg">
+                  <div className={`absolute top-2 right-2 z-10`}>
+                    <div className={`bg-gradient-to-r ${isTopSeller ? 'from-orange-500 to-red-600' : 'from-green-500 to-green-600'} text-white px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold shadow-lg${isTopSeller ? ' animate-pulse' : ''}`}>
                       Terjual {product.total_sold}
                     </div>
                   </div>
