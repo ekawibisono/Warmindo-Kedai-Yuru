@@ -68,7 +68,7 @@ const CustomerMenu = () => {
       }
     } catch (error) {
       // Silent fail - popup banner is not critical
-      console.log('No active popup banner');
+      // console.log('No active popup banner');
     }
   }, []);
 

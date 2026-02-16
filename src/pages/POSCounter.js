@@ -90,6 +90,7 @@ const POSCounter = () => {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [waPhone, setWaPhone] = useState("");
     const [showAdvancedReceipt, setShowAdvancedReceipt] = useState(false);
+    const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
     const navigate = useNavigate();
     const [showMobileCart, setShowMobileCart] = useState(false);
     // const [showMaintenance, setShowMaintenance] = useState(false);
@@ -371,22 +372,16 @@ const POSCounter = () => {
     const buildReceiptTextFromReceiptJs = (order, items) => {
         // INFO TOKO (sesuaikan dengan data toko Anda)
         const storeName = "KEDAI YURU";
-        const storeAddress = "Jl. Wonolopo (Sebrang Prima Futsal) RT.02 RW.07, Semarang";
         const storePhone = "0823-2497-5131";
 
-        let receipt = `═══════════════════════\n`;
-        receipt += `     ${storeName}\n`;
-        receipt += `═══════════════════════\n`;
-        receipt += `${storeAddress}\n`;
+        let receipt = `*${storeName}*\n`;
         receipt += `Telp: ${storePhone}\n`;
         receipt += `\n`;
 
-        receipt += `📋 *STRUK PEMBAYARAN*\n`;
-        receipt += `───────────────────────\n`;
-        receipt += `No. Order  : *${order.order_no}*\n`;
-        receipt += `Tanggal    : ${formatDate(order.created_at)}\n`;
-        receipt += `Kasir      : ${order.cashier_name || '-'}\n`;
-        receipt += `Customer   : ${order.customer_name}\n`;
+        receipt += `📋 *NOTA PEMBAYARAN*\n`;
+        receipt += `Order: *${order.order_no}*\n`;
+        receipt += `Tanggal: ${formatDate(order.created_at)}\n`;
+        receipt += `Customer: ${order.customer_name}\n`;
 
         // Tipe order
         let orderTypeText = '';
@@ -399,7 +394,7 @@ const POSCounter = () => {
         } else if (order.type === 'takeaway') {
             orderTypeText = 'TakeAway';
         }
-        receipt += `Tipe       : ${orderTypeText}\n`;
+        receipt += `Tipe: ${orderTypeText}\n`;
 
         // Payment method
         let paymentText = '';
@@ -407,17 +402,14 @@ const POSCounter = () => {
             paymentText = 'Cash';
         } else if (order.payment_method === 'qris') {
             paymentText = 'QRIS';
-        } else if (order.payment_method === 'transfer') {
-            paymentText = 'Transfer';
         } else {
             paymentText = order.payment_method?.toUpperCase() || 'CASH';
         }
-        receipt += `Pembayaran : ${paymentText}\n`;
-        receipt += `───────────────────────\n\n`;
+        receipt += `Bayar: ${paymentText}\n`;
+        receipt += `\n`;
 
-        // Items detail dengan harga
-        receipt += `*DETAIL PESANAN*\n`;
-        receipt += `───────────────────────\n`;
+        // Items detail
+        receipt += `*PESANAN:*\n`;
 
         let subtotal = 0;
 
@@ -425,8 +417,8 @@ const POSCounter = () => {
             const itemPrice = Number(item.price_snapshot || item.unit_price_snapshot || 0);
             const qty = Number(item.qty || 0);
 
-            receipt += `${index + 1}. *${item.product_name_snapshot}*\n`;
-            receipt += `   ${qty}x @ ${formatRupiah(itemPrice)}\n`;
+            receipt += `${index + 1}. ${item.product_name_snapshot}\n`;
+            receipt += `   ${qty}x ${formatRupiah(itemPrice)} = ${formatRupiah(itemPrice * qty)}\n`;
 
             // Add modifiers if any
             let modifiersTotal = 0;
@@ -438,52 +430,53 @@ const POSCounter = () => {
                     modifiersTotal += modTotal;
 
                     if (modPrice > 0) {
-                        receipt += `   + ${mod.modifier_name_snapshot} (${formatRupiah(modPrice)})\n`;
+                        receipt += `   + ${mod.modifier_name_snapshot} ${formatRupiah(modPrice)}\n`;
                     } else {
                         receipt += `   + ${mod.modifier_name_snapshot}\n`;
                     }
                 });
             }
 
-            // Item total
-            const totalWithMods = (itemPrice + (modifiersTotal / qty)) * qty;
-            receipt += `   = ${formatRupiah(totalWithMods)}\n`;
-            receipt += `\n`;
-
-            subtotal += totalWithMods;
+            const itemTotal = (itemPrice * qty) + modifiersTotal;
+            subtotal += itemTotal;
         });
 
-        receipt += `───────────────────────\n`;
-        receipt += `Subtotal   : ${formatRupiah(subtotal)}\n`;
+        receipt += `\n`;
+        receipt += `Subtotal: ${formatRupiah(subtotal)}\n`;
 
         // Discount jika ada
         if (order.discount_amount && Number(order.discount_amount) > 0) {
-            receipt += `Diskon     : -${formatRupiah(order.discount_amount)}\n`;
+            receipt += `Diskon: -${formatRupiah(order.discount_amount)}\n`;
         }
 
         // Tax jika ada
         if (order.tax_amount && Number(order.tax_amount) > 0) {
-            receipt += `Pajak      : ${formatRupiah(order.tax_amount)}\n`;
+            receipt += `Pajak: ${formatRupiah(order.tax_amount)}\n`;
         }
 
-        receipt += `───────────────────────\n`;
-        receipt += `*TOTAL      : ${formatRupiah(order.grand_total)}*\n`;
-        receipt += `───────────────────────\n`;
+        receipt += `*TOTAL: ${formatRupiah(order.grand_total)}*\n`;
 
         // Notes jika ada
         if (order.notes) {
-            receipt += `\nCatatan:\n${order.notes}\n`;
+            receipt += `\nCatatan: ${order.notes}\n`;
         }
 
         receipt += `\n`;
-        receipt += `═══════════════════════\n`;
-        receipt += `   *Terima Kasih!*\n`;
-        receipt += `   Selamat Menikmati\n`;
-        receipt += `═══════════════════════\n`;
+        receipt += `Terima kasih! 🙏\n`;
+        receipt += `Selamat menikmati!\n`;
+        receipt += `\n`;
+        receipt += `⭐ Rating kami di Google Maps:\n`;
+        receipt += `https://shorturl.at/T8M2b\n`;
 
         return receipt;
     };
 
+    // ============================================================================
+    // 🧾 POS RECEIPT/NOTA SYSTEM - Kirim nota ke customer saja
+    // - Fungsi ini HANYA untuk mengirim ulang nota/receipt ke customer
+    // - TIDAK mengirim notifikasi ke owner (karena kasir sudah input manual)
+    // - Digunakan saat kasir ingin kirim nota via WhatsApp dari receipt modal
+    // ============================================================================
     const sendReceiptWhatsApp = async (r, phoneOverride) => {
         const staffKey = localStorage.getItem("staff_key") || "";
         if (!staffKey) {
@@ -495,9 +488,13 @@ const POSCounter = () => {
             notify.error("Nomor WhatsApp wajib diisi untuk kirim nota.");
             return false;
         }
-        const { order, items } = mapPosReceiptToReceiptJsShape(r);
-        const message = buildReceiptTextFromReceiptJs(order, items);
+        
+        setSendingWhatsApp(true);
+        
         try {
+            const { order, items } = mapPosReceiptToReceiptJsShape(r);
+            const message = buildReceiptTextFromReceiptJs(order, items);
+            
             const res = await fetch(`${API_BASE_URL}/whatsapp/send`, {
                 method: "POST",
                 headers: {
@@ -506,18 +503,22 @@ const POSCounter = () => {
                 },
                 body: JSON.stringify({ target, message }),
             });
+            
             const data = await res.json().catch(() => ({}));
+            
             if (!res.ok) {
                 notify.error(data?.message || data?.error || "Gagal kirim WhatsApp.");
                 return false;
             }
 
-            notify.success("Nota terkirim via WhatsApp.");
+            notify.success("Nota berhasil terkirim via WhatsApp! ✅");
             return true;
         } catch (err) {
             console.error(err);
             notify.error("Gagal kirim WhatsApp (cek koneksi/backend).");
             return false;
+        } finally {
+            setSendingWhatsApp(false);
         }
     };
 
@@ -525,8 +526,22 @@ const POSCounter = () => {
         const mappings = (menu.product_modifier_groups || [])
             .filter((pmg) => pmg.product_id === productId)
             .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        
         return mappings
-            .map((pmg) => menu.modifier_groups.find((g) => g.id === pmg.group_id))
+            .map((pmg) => {
+                const group = menu.modifier_groups.find((g) => g.id === pmg.group_id);
+                if (!group) return null;
+                
+                // Merge data from product_modifier_groups and modifier_groups
+                return {
+                    ...group,
+                    // Override with product-specific settings from product_modifier_groups
+                    is_required: pmg.is_required !== undefined ? pmg.is_required : group.is_required,
+                    min_select: pmg.min_select !== undefined ? pmg.min_select : group.min_select,
+                    max_select: pmg.max_select !== undefined ? pmg.max_select : group.max_select,
+                    position: pmg.position !== undefined ? pmg.position : group.position,
+                };
+            })
             .filter(Boolean);
     }, [menu.product_modifier_groups, menu.modifier_groups]);
 
@@ -611,11 +626,21 @@ const POSCounter = () => {
 
     const canAddToCart = useCallback(() => {
         if (!selectedProduct) return false;
-        return selectedProductModifierGroups.every(group => {
-            if (!group.is_required) return true;
+        
+        // Check every required modifier group
+        for (const group of selectedProductModifierGroups) {
+            // Skip if group is not required
+            if (!group.is_required) continue;
+            
             const selected = selectedModifiers[group.id] || [];
-            return selected.length >= group.min_select;
-        });
+            const minSelect = group.min_select || 1; // Default min_select to 1 if not set
+            
+            if (selected.length < minSelect) {
+                return false;
+            }
+        }
+        
+        return true;
     }, [selectedProduct, selectedModifiers, selectedProductModifierGroups]);
 
     // Optimized handlers dengan useCallback
@@ -626,7 +651,23 @@ const POSCounter = () => {
     }, []);
 
     const addToCart = useCallback(() => {
-        if (!canAddToCart()) return;
+        if (!canAddToCart()) {
+            // Check for specific missing required modifiers
+            const missingGroups = selectedProductModifierGroups.filter(group => {
+                if (!group.is_required) return false;
+                const selected = selectedModifiers[group.id] || [];
+                const minSelect = group.min_select || 1;
+                return selected.length < minSelect;
+            });
+            
+            if (missingGroups.length > 0) {
+                const groupNames = missingGroups.map(g => g.name).join(', ');
+                notify.error(`Pilih modifier wajib dulu: ${groupNames}`);
+            } else {
+                notify.error('Pilih semua modifier yang diperlukan');
+            }
+            return;
+        }
         const orderedGroups = getProductModifierGroups(selectedProduct.id);
 
         const modifiers = orderedGroups.flatMap((group) => {
@@ -658,7 +699,7 @@ const POSCounter = () => {
         setCart(prev => [...prev, cartItem]);
         setSelectedProduct(null);
         // notify.success(`${selectedProduct.name} ditambahkan ke cart`);
-    }, [canAddToCart, getProductModifierGroups, getGroupModifiers, selectedProduct, selectedModifiers, quantity, calculateItemSubtotal]);
+    }, [canAddToCart, getProductModifierGroups, getGroupModifiers, selectedProduct, selectedModifiers, quantity, calculateItemSubtotal, selectedProductModifierGroups]);
 
     const removeFromCart = useCallback((index) => {
         setCart(prev => prev.filter((_, i) => i !== index));
@@ -785,6 +826,9 @@ const POSCounter = () => {
                 grand_total: created.grand_total ?? getTotalAmount(),
             });
 
+            // 🧾 Order berhasil dibuat - backend otomatis kirim nota ke customer (jika ada HP)
+            // Receipt Modal muncul untuk semua tipe order POS (dine_in, takeaway, pickup, delivery)
+            // Kasir bisa cetak struk atau kirim ulang nota via WhatsApp dari modal
             setShowReceiptModal(true);
             // If cash payment, auto-approve it
             if (customerInfo.payment_method === 'cash') {
@@ -1041,12 +1085,40 @@ const POSCounter = () => {
                                 const modifiers = modifiersByGroup[group.id] || [];
                                 const isSingleSelection = group.selection_type === 'single';
 
+                                const selectedCount = (selectedModifiers[group.id] || []).length;
+                                const minRequired = group.min_select || 1;
+                                const isRequiredButNotSelected = group.is_required && selectedCount < minRequired;
+                                
                                 return (
-                                    <div key={group.id} className="mb-6">
-                                        <h3 className="font-bold text-lg mb-2">
-                                            {group.name}
-                                            {group.is_required && <span className="text-red-500"> *</span>}
-                                        </h3>
+                                    <div key={group.id} className={`mb-6 p-4 rounded-xl border-2 ${
+                                        isRequiredButNotSelected 
+                                            ? 'border-red-300 bg-red-50' 
+                                            : 'border-gray-200 bg-gray-50'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-bold text-lg">
+                                                {group.name}
+                                                {group.is_required && (
+                                                    <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full font-bold">
+                                                        WAJIB
+                                                    </span>
+                                                )}
+                                            </h3>
+                                            {group.is_required && (
+                                                <span className={`text-sm ${
+                                                    selectedCount >= minRequired ? 'text-green-600' : 'text-red-600'
+                                                }`}>
+                                                    {selectedCount}/{minRequired}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {isRequiredButNotSelected && (
+                                            <div className="mb-3 p-2 bg-red-100 border border-red-200 rounded-lg">
+                                                <p className="text-red-700 text-sm font-medium">
+                                                    ⚠️ Pilih minimal {minRequired} item untuk melanjutkan
+                                                </p>
+                                            </div>
+                                        )}
                                         <div className="space-y-2">
                                             {modifiers.map(modifier => {
                                                 const isChecked = (selectedModifiers[group.id] || []).includes(modifier.id);
@@ -1097,15 +1169,28 @@ const POSCounter = () => {
                                 </div>
                             </div>
 
+                            {/* Error message for missing required modifiers */}
+                            {!canAddToCart() && selectedProduct && selectedProductModifierGroups.some(g => g.is_required) && (
+                                <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg">
+                                    <p className="text-red-700 text-sm font-medium">
+                                        🚫 Pilih semua modifier yang wajib terlebih dahulu
+                                    </p>
+                                </div>
+                            )}
+                            
                             <button
                                 onClick={addToCart}
                                 disabled={!canAddToCart()}
-                                className={`w-full py-3 rounded-lg font-bold ${canAddToCart()
-                                    ? 'bg-primary-600 text-white hover:bg-primary-700'
-                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    }`}
+                                className={`w-full py-3 rounded-lg font-bold transition-all ${
+                                    canAddToCart()
+                                        ? 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-lg'
+                                        : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                                }`}
                             >
-                                Tambah ke Cart - {formatRupiah(modalItemSubtotal)}
+                                {canAddToCart() 
+                                    ? `Tambah ke Cart - ${formatRupiah(modalItemSubtotal)}`
+                                    : 'Pilih Modifier Wajib Dulu'
+                                }
                             </button>
                         </div>
                     </div>
@@ -1464,7 +1549,7 @@ const POSCounter = () => {
                 </div>
             )}
 
-            {/* Receipt Modal (Print / WhatsApp) */}
+            {/* 🧾 Receipt Modal - Hanya untuk kirim nota/receipt ke customer (semua tipe order POS) */}
             {showReceiptModal && receipt && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-xl w-full max-w-md p-6">
@@ -1474,10 +1559,10 @@ const POSCounter = () => {
                             Nomor: <b>{receipt.order_no}</b>
                         </p>
 
-                        {/* Input nomor WA (wajib jika kirim WA) */}
+                        {/* Input nomor WA manual untuk semua customer (guest & existing) */}
                         <div className="mb-4">
                             <label className="block text-sm font-medium mb-1">
-                                Nomor WhatsApp (wajib untuk kirim)
+                                Nomor WhatsApp (wajib untuk kirim nota)
                             </label>
                             <input
                                 value={waPhone}
@@ -1488,6 +1573,13 @@ const POSCounter = () => {
                             <p className="text-xs text-gray-500 mt-1">
                                 Format bebas, nanti otomatis jadi 62xxxx
                             </p>
+                            {customerType === 'existing' && selectedCustomer && selectedCustomer.phone && (
+                                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs text-blue-700">
+                                        💡 Member: {selectedCustomer.name} • {selectedCustomer.phone}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-3">
@@ -1528,25 +1620,41 @@ const POSCounter = () => {
                                     </div>
                                 </div>
                             )} */}
+                            {/* Button kirim WhatsApp untuk semua customer */}
                             <button
                                 onClick={async () => {
                                     const success = await sendReceiptWhatsApp(receipt, waPhone);
                                     if (success) {
-                                        setShowReceiptModal(false);
+                                        // Auto close modal setelah berhasil kirim
+                                        setTimeout(() => {
+                                            setShowReceiptModal(false);
+                                        }, 1500); // Delay 1.5 detik untuk user baca notifikasi success
                                     }
                                 }}
-                                className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700"
-                                disabled={!String(waPhone || "").trim()}
-                                title={!String(waPhone || "").trim() ? "Isi nomor WA dulu" : ""}
+                                className={`w-full py-3 rounded-lg font-bold transition-all ${
+                                    sendingWhatsApp 
+                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                        : 'bg-green-600 hover:bg-green-700'
+                                } text-white`}
+                                disabled={!String(waPhone || "").trim() || sendingWhatsApp}
+                                title={!String(waPhone || "").trim() ? "Isi nomor WA dulu" : "Kirim nota/receipt ke customer"}
                             >
-                                💬 Kirim via WhatsApp
+                                {sendingWhatsApp ? (
+                                    <div className="flex items-center justify-center space-x-2">
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span>Mengirim...</span>
+                                    </div>
+                                ) : (
+                                    '💬 Kirim Nota via WhatsApp'
+                                )}
                             </button>
 
                             <button
                                 onClick={() => setShowReceiptModal(false)}
                                 className="w-full py-3 bg-gray-200 rounded-lg font-bold hover:bg-gray-300"
+                                disabled={sendingWhatsApp}
                             >
-                                Tutup
+                                {sendingWhatsApp ? 'Mengirim...' : 'Tutup'}
                             </button>
                         </div>
                     </div>

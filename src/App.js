@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CustomerAuthProvider } from './contexts/CustomerAuthContext';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import Toast from './components/common/Toast';
@@ -74,6 +74,35 @@ const MaintenanceCheck = ({ children }) => {
   }
 
   return children;
+};
+
+// Component for role-based redirect on default route
+const RoleBasedRedirect = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not logged in, go to customer menu
+  if (!user) {
+    return <Navigate to="/menu" replace />;
+  }
+
+  // If user is kasir, redirect to POS
+  if (user.role === 'kasir') {
+    return <Navigate to="/admin/pos" replace />;
+  }
+
+  // If user is admin or other roles, redirect to dashboard
+  return <Navigate to="/admin/dashboard" replace />;
 };
 
 function App() {
@@ -256,8 +285,8 @@ function App() {
             }
           />
 
-          {/* Default Route */}
-          <Route path="/" element={<Navigate to="/menu" replace />} />
+          {/* Default Route - Role-based redirect */}
+          <Route path="/" element={<RoleBasedRedirect />} />
           <Route path="*" element={<Navigate to="/menu" replace />} />
         </Routes>
         <Toast />

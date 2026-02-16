@@ -210,6 +210,7 @@ const AdminDashboard = () => {
       preparing: 'Sedang Diproses',
       ready: 'Siap',
       waiting_pickup: 'Menunggu Pickup',
+      picked_up: 'Sudah Diambil',
       delivering: 'Sedang Dikirim',
       completed: 'Selesai',
       cancelled: 'Dibatalkan'
@@ -225,6 +226,7 @@ const AdminDashboard = () => {
       preparing: 'bg-orange-100 text-orange-800',
       ready: 'bg-purple-100 text-purple-800',
       waiting_pickup: 'bg-indigo-100 text-indigo-800',
+      picked_up: 'bg-indigo-100 text-indigo-800',
       delivering: 'bg-cyan-100 text-cyan-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800'

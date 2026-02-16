@@ -120,7 +120,7 @@ export const AuthProvider = ({ children }) => {
           setUser(userData);
         } catch (error) {
           // Staff key tidak valid lagi atau session expired, hapus session
-          console.log('Session invalid or expired:', error.message);
+          notify.error(`Session invalid or expired: ${error.message}`);
           localStorage.removeItem('staff_user');
           localStorage.removeItem('staff_key');
         }
@@ -162,12 +162,11 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('staff_user', JSON.stringify(userData));
       localStorage.setItem('staff_key', staffKey);
       setUser(userData);
-      
-      console.log('✅ Login berhasil:', userData.username);
+      notify.success(`Welcome ${userData.full_name}`);
       return true;
     } catch (error) {
       // 401 atau error lainnya = staff key tidak valid
-      console.error('❌ Login gagal:', error.response?.data?.message || error.message);
+      notify.error(`Gagal ${error.response?.data?.message || error.message}`);
       
       // Pastikan localStorage dan state dibersihkan jika login gagal
       localStorage.removeItem('staff_user');

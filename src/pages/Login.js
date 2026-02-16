@@ -19,7 +19,8 @@ const Login = () => {
       const success = await login(staffKey);
       
       if (success) {
-        navigate('/admin/dashboard');
+        // Redirect berdasarkan role - gunakan "/" untuk trigger RoleBasedRedirect
+        navigate('/');
       } else {
         setError('Staff key tidak valid');
       }

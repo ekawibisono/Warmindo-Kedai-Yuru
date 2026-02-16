@@ -29,7 +29,8 @@ const SalesReport = () => {
         qrisOrders: 0,
         pickupOrders: 0,
         takeawayOrders: 0,
-        deliveryOrders: 0
+        deliveryOrders: 0,
+        dineInOrders: 0
     });
 
     useEffect(() => {
@@ -172,6 +173,7 @@ const SalesReport = () => {
         const pickupOrders = completedOrders.filter(o => o.type === 'pickup').length;
         const takeawayOrders = completedOrders.filter(o => o.type === 'takeaway').length;
         const deliveryOrders = completedOrders.filter(o => o.type === 'delivery').length;
+        const dineInOrders = completedOrders.filter(o => o.type === 'dine_in').length;
 
         setSummary({
             totalRevenue,
@@ -181,7 +183,8 @@ const SalesReport = () => {
             qrisOrders,
             pickupOrders,
             takeawayOrders,
-            deliveryOrders
+            deliveryOrders,
+            dineInOrders
         });
     };
 
@@ -224,7 +227,7 @@ const SalesReport = () => {
             'Tanggal': formatDate(order.created_at),
             'Customer': order.customer_name || '-',
             'Phone': order.customer_phone || '-',
-            'Tipe': order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery',
+            'Tipe': order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : order.type === 'dine_in' ? 'Dine In' : order.type === 'delivery' ? 'Delivery' : '-',
             'Payment Method': order.payment_method === 'cash' ? 'Cash' : 'QRIS',
             'Status': order.status,
             'Subtotal': order.subtotal || 0,
@@ -452,6 +455,7 @@ const SalesReport = () => {
                                 <option value="pickup">Pickup</option>
                                 <option value="takeaway">TakeAway</option>
                                 <option value="delivery">Delivery</option>
+                                <option value="dine_in">Dine In</option>
                             </select>
                         </div>
 
@@ -524,8 +528,8 @@ const SalesReport = () => {
                     </div>
 
                     <div className="card">
-                        <div className="text-sm text-gray-600 mb-1">Order Types</div>
-                        <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="text-sm text-gray-600 mb-1 text-center">Order Types</div>
+                        <div className="grid grid-cols-2 gap-3 text-center">
                             <div>
                                 <div className="text-lg font-bold text-gray-900">{summary.pickupOrders}</div>
                                 <div className="text-xs text-gray-600">Pickup</div>
@@ -536,7 +540,11 @@ const SalesReport = () => {
                             </div>
                             <div>
                                 <div className="text-lg font-bold text-gray-900">{summary.deliveryOrders}</div>
-                                <div className="text-xs text-gray-600">🚚 Delivery</div>
+                                <div className="text-xs text-gray-600">Delivery</div>
+                            </div>
+                            <div>
+                                <div className="text-lg font-bold text-gray-900">{summary.dineInOrders}</div>
+                                <div className="text-xs text-gray-600">Dine In</div>
                             </div>
                         </div>
                     </div>
@@ -580,7 +588,7 @@ const SalesReport = () => {
                                             <div>
                                                 <div className="text-gray-500">Info:</div>
                                                 <div className="text-gray-900">
-                                                    {order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery'}
+                                                    {order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : order.type === 'dine_in' ? 'Dine In' : order.type === 'delivery' ? 'Delivery' : '-'}
                                                 </div>
                                                 <div className="text-gray-900">
                                                     {order.payment_method === 'cash' ? 'Cash' : 'QRIS'}
@@ -620,7 +628,7 @@ const SalesReport = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm text-gray-900">
-                                                        {order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : 'Delivery'}
+                                                        {order.type === 'pickup' ? 'Pickup' : order.type === 'takeaway' ? 'TakeAway' : order.type === 'dine_in' ? 'Dine In' : 'Delivery'}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">

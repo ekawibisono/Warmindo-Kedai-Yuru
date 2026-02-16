@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { notify } from '../common/Toast';
 
 const AdminLayout = ({ children }) => {
   // Desktop collapse (w-64 / w-20)
@@ -13,9 +14,54 @@ const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      // Show loading notification
+      notify.info("Logging out...");
+      
+      // Clean localStorage completely
+      const keysToRemove = [
+        'staff_key',
+        'authToken', 
+        'user',
+        'userData',
+        'adminToken',
+        'adminUser',
+        'expires_at',
+        'refresh_token'
+      ];
+      
+      // Remove specific auth keys
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+      });
+      
+      // Optional: Clear all localStorage (uncomment if needed)
+      // localStorage.clear();
+      
+      // Clear sessionStorage as well
+      sessionStorage.clear();
+      
+      // Call auth context logout
+      logout();
+      
+      // Success notification
+      notify.success("Logout berhasil! Sampai jumpa! 👋");
+      
+      // Small delay for better UX
+      setTimeout(() => {
+        navigate("/login", { replace: true });
+      }, 1000);
+      
+    } catch (error) {
+      console.error("Logout error:", error);
+      notify.error("Ada masalah saat logout. Coba lagi.");
+      
+      // Force logout anyway for security
+      localStorage.clear();
+      sessionStorage.clear();
+      navigate("/login", { replace: true });
+    }
   };
 
   // Active: cocok untuk exact & sub-route
