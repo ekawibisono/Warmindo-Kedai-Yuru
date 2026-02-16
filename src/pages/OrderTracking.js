@@ -54,7 +54,7 @@ const OrderTracking = () => {
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          console.log('⏰ Token countdown expired');
+          // console.log('⏰ Token countdown expired');
           setTokenExpired(true);
           setError('Token tracking telah kedaluwarsa. Order hanya dapat dilihat selama 24 jam sejak dibuat.');
           return 0;
@@ -79,12 +79,12 @@ const OrderTracking = () => {
       const initialFetch = async () => {
         setLoading(true);
         try {
-          console.log('Fetching order:', urlOrderNo, 'with token:', urlToken?.substring(0, 4) + '***');
+          // console.log('Fetching order:', urlOrderNo, 'with token:', urlToken?.substring(0, 4) + '***');
           const response = await publicAPI.getOrder(urlOrderNo, urlToken);
-          console.log('API Response:', response);
+          // console.log('API Response:', response);
           
           const orderData = response.data;
-          console.log('Order data:', orderData);
+          // console.log('Order data:', orderData);
 
           let currentOrder = null;
           if (orderData.order) {
@@ -147,9 +147,9 @@ const OrderTracking = () => {
       setLoading(true);
       
       try {
-        console.log('Manual search order:', orderNo, 'with token:', token?.substring(0, 4) + '***');
+        // console.log('Manual search order:', orderNo, 'with token:', token?.substring(0, 4) + '***');
         const response = await publicAPI.getOrder(orderNo, token);
-        console.log('Search API Response:', response);
+        // console.log('Search API Response:', response);
         
         const orderData = response.data;
 
@@ -205,9 +205,9 @@ const OrderTracking = () => {
     if (!tokenExpired && orderNo && token) {
       setLoading(true);
       try {
-        console.log('Manual refresh for order:', orderNo);
+        // console.log('Manual refresh for order:', orderNo);
         const response = await publicAPI.getOrder(orderNo, token);
-        console.log('Refresh API Response:', response);
+        // console.log('Refresh API Response:', response);
         
         const orderData = response.data;
 
