@@ -78,7 +78,7 @@ const MaintenanceCheck = ({ children }) => {
 
 // Component for role-based redirect on default route
 const RoleBasedRedirect = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   if (loading) {
     return (
@@ -93,6 +93,14 @@ const RoleBasedRedirect = () => {
 
   // If user is not logged in, go to customer menu
   if (!user) {
+    return <Navigate to="/menu" replace />;
+  }
+
+  // Additional validation: Check if user session is valid
+  const staffKey = localStorage.getItem('staff_key');
+  if (!staffKey || !user.role) {
+    // Invalid session, clear and redirect to customer menu
+    logout();
     return <Navigate to="/menu" replace />;
   }
 
@@ -113,14 +121,20 @@ function App() {
           <AuthProvider>
             <Router>
         <Routes>
-          {/* Public Routes */}
+          {/* Public Customer Routes - Always accessible without auth */}
           <Route path="/login" element={<Login />} />
           <Route path="/menu" element={<MaintenanceCheck><CustomerMenu /></MaintenanceCheck>} />
           <Route path="/track" element={<MaintenanceCheck><OrderTracking /></MaintenanceCheck>} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           
-          {/* Admin Routes */}
+          {/* Default Route - Role-based redirect for logged in staff only */}
+          <Route path="/" element={<RoleBasedRedirect />} />
+          
+          {/* Customer fallback - redirect unknown routes to menu */}
+          <Route path="*" element={<Navigate to="/menu" replace />} />
+          
+          {/* Admin & Staff Routes - Protected */}
           <Route
             path="/admin/dashboard"
             element={
@@ -185,7 +199,11 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/admin/sales-report" element={<SalesReport />} />
+          <Route path="/admin/sales-report" element={
+            <ProtectedRoute>
+              <SalesReport />
+            </ProtectedRoute>
+          } />
           <Route
             path="/admin/store-settings"
             element={
@@ -240,7 +258,7 @@ function App() {
             path="/kasir/pos"
             element={
               <ProtectedRoute>
-                <Kitchen />
+                <POSCounter />
               </ProtectedRoute>
             }
           />
@@ -285,8 +303,7 @@ function App() {
             }
           />
 
-          {/* Default Route - Role-based redirect */}
-          <Route path="/" element={<RoleBasedRedirect />} />
+          {/* Customer fallback - redirect unknown routes to menu */}
           <Route path="*" element={<Navigate to="/menu" replace />} />
         </Routes>
         <Toast />
