@@ -11,6 +11,10 @@ const SalesReport = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(50);
+
     // Filter states
     const [dateFilter, setDateFilter] = useState('today');
     const [customStartDate, setCustomStartDate] = useState('');
@@ -46,13 +50,15 @@ const SalesReport = () => {
 
     useEffect(() => {
         applyFilters();
+        setCurrentPage(1); // Reset to page 1 when filters change
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orders, dateFilter, customStartDate, customEndDate, statusFilter, typeFilter, paymentMethodFilter, searchQuery]);
 
     const fetchOrders = async () => {
         setLoading(true);
         try {
-            const response = await staffAPI.getAllOrders();
+            // Fetch with large limit to get all historical data for sales report
+            const response = await staffAPI.getAllOrders({ limit: 10000, offset: 0 });
             setOrders(response.data.orders || []);
         } catch (error) {
             console.error('Error fetching orders:', error);
@@ -126,9 +132,13 @@ const SalesReport = () => {
 
                 case 'custom':
                     if (customStartDate && customEndDate) {
-                        const start = new Date(customStartDate);
-                        const end = new Date(customEndDate);
-                        end.setHours(23, 59, 59, 999);
+                        // Parse tanggal dengan timezone lokal yang konsisten
+                        const [startYear, startMonth, startDay] = customStartDate.split('-').map(Number);
+                        const [endYear, endMonth, endDay] = customEndDate.split('-').map(Number);
+                        
+                        const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+                        const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+                        
                         filtered = filtered.filter(order => {
                             const orderDate = new Date(order.created_at);
                             return orderDate >= start && orderDate <= end;
@@ -213,6 +223,47 @@ const SalesReport = () => {
         } catch (error) {
             return '-';
         }
+    };
+
+    // Pagination logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentOrders = filteredOrders.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+
+    const handlePageChange = (pageNumber) => {
+        setCurrentPage(pageNumber);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxPagesToShow = 5;
+        
+        if (totalPages <= maxPagesToShow) {
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+            }
+        } else {
+            if (currentPage <= 3) {
+                for (let i = 1; i <= 4; i++) pages.push(i);
+                pages.push('...');
+                pages.push(totalPages);
+            } else if (currentPage >= totalPages - 2) {
+                pages.push(1);
+                pages.push('...');
+                for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+            } else {
+                pages.push(1);
+                pages.push('...');
+                pages.push(currentPage - 1);
+                pages.push(currentPage);
+                pages.push(currentPage + 1);
+                pages.push('...');
+                pages.push(totalPages);
+            }
+        }
+        return pages;
     };
 
     const exportToExcel = () => {
@@ -554,6 +605,11 @@ const SalesReport = () => {
                 <div className="card">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="font-bold text-base sm:text-lg">📋 Data Pesanan ({filteredOrders.length})</h3>
+                        {filteredOrders.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                                Halaman {currentPage} dari {totalPages}
+                            </div>
+                        )}
                     </div>
 
                     {filteredOrders.length === 0 ? (
@@ -565,7 +621,7 @@ const SalesReport = () => {
                         <>
                             {/* Mobile Card View */}
                             <div className="block lg:hidden space-y-4">
-                                {filteredOrders.map((order) => (
+                                {currentOrders.map((order) => (
                                     <div key={order.id} className="border rounded-lg p-4 bg-white shadow-sm">
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
@@ -614,7 +670,7 @@ const SalesReport = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {filteredOrders.map((order) => (
+                                        {currentOrders.map((order) => (
                                             <tr key={order.id} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm font-medium text-gray-900">{order.order_no}</div>
@@ -649,6 +705,57 @@ const SalesReport = () => {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <div className="text-sm text-gray-600">
+                                        Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredOrders.length)} dari {filteredOrders.length} data
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {/* Previous Button */}
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="px-3 py-2 rounded-lg border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                                        >
+                                            ← Prev
+                                        </button>
+
+                                        {/* Page Numbers */}
+                                        <div className="flex gap-1">
+                                            {getPageNumbers().map((page, index) => (
+                                                page === '...' ? (
+                                                    <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-500">
+                                                        ...
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        key={page}
+                                                        onClick={() => handlePageChange(page)}
+                                                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                            currentPage === page
+                                                                ? 'bg-blue-600 text-white'
+                                                                : 'border hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                )
+                                            ))}
+                                        </div>
+
+                                        {/* Next Button */}
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="px-3 py-2 rounded-lg border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                                        >
+                                            Next →
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
                 </div>
